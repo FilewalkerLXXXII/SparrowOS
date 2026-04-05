@@ -1,0 +1,25 @@
+# SparrowOS — Per-tenant configuration template
+#
+# This file is sourced by various sparrow-tenant scripts.  Placeholders
+# are substituted during tenant provisioning (sparrow-tenant create).
+#
+# Location when provisioned:
+#   /usr/local/etc/sparrow/tenants/<name>/tenant.conf
+
+# --- Identity ---
+TENANT_NAME="{{TENANT_NAME}}"
+TENANT_CREATED="{{TENANT_CREATED}}"
+TENANT_STATUS="{{TENANT_STATUS}}"
+
+# --- Resource profile (small | medium | large) ---
+TENANT_PROFILE="{{TENANT_PROFILE}}"
+
+# --- Networking ---
+TENANT_IP="{{TENANT_IP}}"
+TENANT_GATEWAY="{{TENANT_GATEWAY}}"
+TENANT_SUBNET_ID="{{TENANT_SUBNET_ID}}"
+TENANT_EPAIR="{{TENANT_EPAIR}}"
+
+# --- AI tool provisioning ---
+# Comma-separated list of enabled AI tools (claude, codex, gemini)
+TENANT_AI_TOOLS="{{TENANT_AI_TOOLS}}"

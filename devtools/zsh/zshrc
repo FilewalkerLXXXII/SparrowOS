@@ -1,0 +1,155 @@
+# SparrowOS Zsh Configuration
+# Cyberpunk "Hackers" aesthetic shell environment
+
+# ---------------------------------------------------------------------------
+# Zinit plugin manager (lazy loading)
+# ---------------------------------------------------------------------------
+ZINIT_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}/zinit/zinit.git"
+
+# Auto-install zinit if missing
+if [[ ! -d "$ZINIT_HOME" ]]; then
+    print -P "%F{green}Installing zinit...%f"
+    mkdir -p "$(dirname "$ZINIT_HOME")"
+    git clone https://github.com/zdharma-continuum/zinit.git "$ZINIT_HOME" 2>/dev/null
+fi
+
+source "${ZINIT_HOME}/zinit.zsh"
+
+# ---------------------------------------------------------------------------
+# Plugins (turbo-loaded for speed)
+# ---------------------------------------------------------------------------
+# Completions — load first so other plugins can use them
+zinit ice wait lucid blockf atpull'zinit creinstall -q .'
+zinit light zsh-users/zsh-completions
+
+# Autosuggestions
+zinit ice wait lucid atload'_zsh_autosuggest_start'
+zinit light zsh-users/zsh-autosuggestions
+
+# Syntax highlighting — must be loaded after completions
+zinit ice wait lucid atinit'zicompinit; zicdreplay'
+zinit light zsh-users/zsh-syntax-highlighting
+
+# FZF tab completion
+zinit ice wait lucid
+zinit light Aloxaf/fzf-tab
+
+# ---------------------------------------------------------------------------
+# Completion settings
+# ---------------------------------------------------------------------------
+zstyle ':completion:*' matcher-list 'm:{a-z}={A-Za-z}'
+zstyle ':completion:*' list-colors "${(s.:.)LS_COLORS}"
+zstyle ':completion:*' menu no
+zstyle ':fzf-tab:complete:cd:*' fzf-preview 'ls --color=always $realpath'
+zstyle ':fzf-tab:complete:__zoxide_z:*' fzf-preview 'ls --color=always $realpath'
+
+# ---------------------------------------------------------------------------
+# History
+# ---------------------------------------------------------------------------
+HISTSIZE=50000
+SAVEHIST=50000
+HISTFILE="${XDG_DATA_HOME:-$HOME/.local/share}/zsh/history"
+mkdir -p "$(dirname "$HISTFILE")"
+
+setopt HIST_IGNORE_ALL_DUPS
+setopt HIST_SAVE_NO_DUPS
+setopt HIST_REDUCE_BLANKS
+setopt HIST_IGNORE_SPACE
+setopt SHARE_HISTORY
+setopt APPEND_HISTORY
+setopt INC_APPEND_HISTORY
+setopt EXTENDED_HISTORY
+
+# ---------------------------------------------------------------------------
+# Shell options
+# ---------------------------------------------------------------------------
+setopt AUTO_CD
+setopt AUTO_PUSHD
+setopt PUSHD_SILENT
+setopt PUSHD_TO_HOME
+setopt CORRECT
+setopt INTERACTIVE_COMMENTS
+setopt NO_BEEP
+
+# ---------------------------------------------------------------------------
+# Key bindings (vi mode with some emacs additions)
+# ---------------------------------------------------------------------------
+bindkey -e
+bindkey '^p' history-search-backward
+bindkey '^n' history-search-forward
+bindkey '^[[A' history-search-backward
+bindkey '^[[B' history-search-forward
+
+# ---------------------------------------------------------------------------
+# Environment
+# ---------------------------------------------------------------------------
+export EDITOR=hx
+export VISUAL=hx
+export PATH="/usr/local/bin:$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+
+# Source SparrowOS color palette
+[[ -f /etc/sparrow/theme/colors.sh ]] && source /etc/sparrow/theme/colors.sh
+
+# ---------------------------------------------------------------------------
+# Aliases — general
+# ---------------------------------------------------------------------------
+alias ll='ls -lah --color=auto'
+alias la='ls -A --color=auto'
+alias ls='ls --color=auto'
+alias grep='grep --color=auto'
+alias tree='tree -C'
+
+# ---------------------------------------------------------------------------
+# Aliases — git
+# ---------------------------------------------------------------------------
+alias gs='git status'
+alias gd='git diff'
+alias gp='git push'
+alias gl='git log --oneline --graph --decorate -20'
+alias ga='git add'
+alias gc='git commit'
+alias gco='git checkout'
+alias gb='git branch'
+alias gpl='git pull'
+
+# ---------------------------------------------------------------------------
+# Aliases — SparrowOS
+# ---------------------------------------------------------------------------
+alias ai-claude='sparrow-ai --provider claude'
+alias ai-codex='sparrow-ai --provider codex'
+alias ai-gemini='sparrow-ai --provider gemini'
+alias tenant-list='sparrow-tenant list'
+alias tenant-status='sparrow-tenant status'
+alias sparrow-snapshot='sparrow-zfs snapshot'
+
+# ---------------------------------------------------------------------------
+# FZF configuration
+# ---------------------------------------------------------------------------
+if command -v fzf &>/dev/null; then
+    export FZF_DEFAULT_OPTS="
+        --color=bg+:#1a1a1a,bg:#0a0a0a,fg:#e0e0e0,fg+:#00ffff
+        --color=hl:#00ff00,hl+:#00ff00,info:#ffcc00,marker:#ff00ff
+        --color=prompt:#00ffff,spinner:#ff00ff,pointer:#ff00ff,header:#0088ff
+        --color=border:#333333,separator:#333333
+        --border=sharp
+        --prompt='> '
+        --pointer='>'
+        --marker='*'
+    "
+    export FZF_DEFAULT_COMMAND='fd --type f --hidden --follow --exclude .git'
+    export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
+fi
+
+# ---------------------------------------------------------------------------
+# Starship prompt
+# ---------------------------------------------------------------------------
+if command -v starship &>/dev/null; then
+    eval "$(starship init zsh)"
+fi
+
+# ---------------------------------------------------------------------------
+# Zoxide (smart cd)
+# ---------------------------------------------------------------------------
+if command -v zoxide &>/dev/null; then
+    eval "$(zoxide init zsh)"
+fi

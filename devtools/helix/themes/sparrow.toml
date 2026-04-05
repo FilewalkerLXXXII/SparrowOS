@@ -1,0 +1,176 @@
+# SparrowOS Helix Theme
+# Cyberpunk "Hackers" aesthetic syntax highlighting
+
+# ---------------------------------------------------------------------------
+# Palette
+# ---------------------------------------------------------------------------
+[palette]
+bg = "#0a0a0a"
+fg = "#e0e0e0"
+green = "#00ff00"
+cyan = "#00ffff"
+magenta = "#ff00ff"
+orange = "#ff6600"
+red = "#ff0055"
+yellow = "#ffcc00"
+blue = "#0088ff"
+dim = "#333333"
+dark = "#1a1a1a"
+comment = "#555555"
+bright_white = "#ffffff"
+
+# ---------------------------------------------------------------------------
+# UI
+# ---------------------------------------------------------------------------
+"ui.background" = { bg = "bg" }
+"ui.text" = { fg = "fg" }
+"ui.text.focus" = { fg = "cyan", modifiers = ["bold"] }
+"ui.text.inactive" = { fg = "dim" }
+
+"ui.cursor" = { fg = "bg", bg = "green" }
+"ui.cursor.primary" = { fg = "bg", bg = "green" }
+"ui.cursor.match" = { fg = "bg", bg = "magenta" }
+"ui.cursor.insert" = { fg = "bg", bg = "cyan" }
+"ui.cursor.select" = { fg = "bg", bg = "yellow" }
+
+"ui.selection" = { bg = "dim" }
+"ui.selection.primary" = { bg = "#444444" }
+
+"ui.cursorline.primary" = { bg = "dark" }
+"ui.cursorcolumn.primary" = { bg = "dark" }
+
+"ui.linenr" = { fg = "dim" }
+"ui.linenr.selected" = { fg = "cyan", modifiers = ["bold"] }
+
+"ui.statusline" = { fg = "green", bg = "dark" }
+"ui.statusline.inactive" = { fg = "dim", bg = "bg" }
+"ui.statusline.normal" = { fg = "bg", bg = "cyan", modifiers = ["bold"] }
+"ui.statusline.insert" = { fg = "bg", bg = "green", modifiers = ["bold"] }
+"ui.statusline.select" = { fg = "bg", bg = "magenta", modifiers = ["bold"] }
+"ui.statusline.separator" = { fg = "dim" }
+
+"ui.bufferline" = { fg = "dim", bg = "bg" }
+"ui.bufferline.active" = { fg = "cyan", bg = "dark", modifiers = ["bold"] }
+"ui.bufferline.background" = { bg = "bg" }
+
+"ui.popup" = { fg = "fg", bg = "dark" }
+"ui.popup.info" = { fg = "cyan", bg = "dark" }
+
+"ui.window" = { fg = "dim" }
+
+"ui.menu" = { fg = "fg", bg = "dark" }
+"ui.menu.selected" = { fg = "bg", bg = "cyan" }
+"ui.menu.scroll" = { fg = "dim", bg = "dark" }
+
+"ui.help" = { fg = "fg", bg = "dark" }
+
+"ui.virtual" = { fg = "dim" }
+"ui.virtual.ruler" = { bg = "dark" }
+"ui.virtual.indent-guide" = { fg = "dim" }
+"ui.virtual.inlay-hint" = { fg = "comment" }
+"ui.virtual.wrap" = { fg = "dim" }
+
+"ui.gutter" = { bg = "bg" }
+
+# ---------------------------------------------------------------------------
+# Syntax highlighting
+# ---------------------------------------------------------------------------
+"comment" = { fg = "comment", modifiers = ["italic"] }
+"comment.line" = { fg = "comment", modifiers = ["italic"] }
+"comment.block" = { fg = "comment", modifiers = ["italic"] }
+"comment.block.documentation" = { fg = "comment", modifiers = ["italic"] }
+
+"string" = { fg = "green" }
+"string.regexp" = { fg = "orange" }
+"string.special" = { fg = "green", modifiers = ["bold"] }
+
+"keyword" = { fg = "cyan" }
+"keyword.control" = { fg = "cyan", modifiers = ["bold"] }
+"keyword.control.conditional" = { fg = "cyan" }
+"keyword.control.repeat" = { fg = "cyan" }
+"keyword.control.return" = { fg = "cyan", modifiers = ["bold"] }
+"keyword.control.exception" = { fg = "red" }
+"keyword.control.import" = { fg = "cyan" }
+"keyword.operator" = { fg = "fg" }
+"keyword.function" = { fg = "cyan" }
+"keyword.storage" = { fg = "cyan" }
+"keyword.storage.type" = { fg = "cyan" }
+"keyword.storage.modifier" = { fg = "cyan" }
+
+"type" = { fg = "magenta" }
+"type.builtin" = { fg = "magenta", modifiers = ["bold"] }
+"type.enum" = { fg = "magenta" }
+"type.enum.variant" = { fg = "magenta" }
+
+"function" = { fg = "blue" }
+"function.builtin" = { fg = "blue", modifiers = ["bold"] }
+"function.method" = { fg = "blue" }
+"function.macro" = { fg = "orange" }
+
+"constructor" = { fg = "magenta" }
+
+"constant" = { fg = "yellow" }
+"constant.builtin" = { fg = "yellow", modifiers = ["bold"] }
+"constant.numeric" = { fg = "yellow" }
+"constant.character" = { fg = "green" }
+"constant.character.escape" = { fg = "orange" }
+
+"variable" = { fg = "fg" }
+"variable.builtin" = { fg = "cyan" }
+"variable.parameter" = { fg = "fg", modifiers = ["italic"] }
+"variable.other.member" = { fg = "fg" }
+
+"operator" = { fg = "fg" }
+"punctuation" = { fg = "fg" }
+"punctuation.bracket" = { fg = "fg" }
+"punctuation.delimiter" = { fg = "fg" }
+"punctuation.special" = { fg = "orange" }
+
+"label" = { fg = "cyan" }
+"namespace" = { fg = "magenta" }
+"module" = { fg = "magenta" }
+
+"tag" = { fg = "cyan" }
+"attribute" = { fg = "yellow" }
+
+"special" = { fg = "orange" }
+
+# ---------------------------------------------------------------------------
+# Markup
+# ---------------------------------------------------------------------------
+"markup.heading" = { fg = "cyan", modifiers = ["bold"] }
+"markup.heading.marker" = { fg = "dim" }
+"markup.bold" = { fg = "yellow", modifiers = ["bold"] }
+"markup.italic" = { fg = "fg", modifiers = ["italic"] }
+"markup.strikethrough" = { fg = "dim", modifiers = ["crossed_out"] }
+"markup.link" = { fg = "blue", modifiers = ["underlined"] }
+"markup.link.url" = { fg = "blue", modifiers = ["underlined"] }
+"markup.link.text" = { fg = "cyan" }
+"markup.raw" = { fg = "green" }
+"markup.raw.block" = { fg = "green" }
+"markup.raw.inline" = { fg = "green" }
+"markup.list" = { fg = "cyan" }
+"markup.quote" = { fg = "comment", modifiers = ["italic"] }
+
+# ---------------------------------------------------------------------------
+# Diagnostics
+# ---------------------------------------------------------------------------
+"diagnostic.error" = { underline = { style = "curl", color = "red" } }
+"diagnostic.warning" = { underline = { style = "curl", color = "orange" } }
+"diagnostic.info" = { underline = { style = "curl", color = "cyan" } }
+"diagnostic.hint" = { underline = { style = "curl", color = "comment" } }
+"diagnostic.unnecessary" = { modifiers = ["dim"] }
+"diagnostic.deprecated" = { modifiers = ["crossed_out"] }
+
+"error" = { fg = "red" }
+"warning" = { fg = "orange" }
+"info" = { fg = "cyan" }
+"hint" = { fg = "comment" }
+
+# ---------------------------------------------------------------------------
+# Git diff
+# ---------------------------------------------------------------------------
+"diff.plus" = { fg = "green" }
+"diff.minus" = { fg = "red" }
+"diff.delta" = { fg = "yellow" }
+"diff.delta.moved" = { fg = "cyan" }

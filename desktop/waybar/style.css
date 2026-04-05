@@ -1,0 +1,193 @@
+/* SparrowOS Waybar Stylesheet
+ * Cyberpunk "Hackers" aesthetic status bar theme
+ */
+
+/* ---------------------------------------------------------------------------
+ * Global
+ * ------------------------------------------------------------------------ */
+* {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    border: none;
+    border-radius: 0;
+    min-height: 0;
+}
+
+window#waybar {
+    background-color: #0a0a0a;
+    color: #00ff00;
+    border-bottom: 1px solid #333333;
+}
+
+window#waybar.hidden {
+    opacity: 0.2;
+}
+
+/* ---------------------------------------------------------------------------
+ * Tooltips
+ * ------------------------------------------------------------------------ */
+tooltip {
+    background-color: #1a1a1a;
+    border: 1px solid #00ffff;
+    border-radius: 0;
+    color: #e0e0e0;
+}
+
+tooltip label {
+    color: #e0e0e0;
+}
+
+/* ---------------------------------------------------------------------------
+ * Workspaces
+ * ------------------------------------------------------------------------ */
+#workspaces button {
+    padding: 0 8px;
+    background-color: transparent;
+    color: #333333;
+    border-bottom: 2px solid transparent;
+    font-weight: normal;
+}
+
+#workspaces button:hover {
+    background-color: #1a1a1a;
+    color: #ff00ff;
+    border-bottom: 2px solid #ff00ff;
+}
+
+#workspaces button.focused {
+    background-color: #1a1a1a;
+    color: #00ffff;
+    border-bottom: 2px solid #00ffff;
+    font-weight: bold;
+}
+
+#workspaces button.visible {
+    color: #e0e0e0;
+    border-bottom: 2px solid #333333;
+}
+
+#workspaces button.urgent {
+    background-color: #1a1a1a;
+    color: #ff0055;
+    border-bottom: 2px solid #ff0055;
+}
+
+/* ---------------------------------------------------------------------------
+ * Window title
+ * ------------------------------------------------------------------------ */
+#window {
+    padding: 0 12px;
+    color: #e0e0e0;
+    font-style: italic;
+}
+
+/* ---------------------------------------------------------------------------
+ * Clock
+ * ------------------------------------------------------------------------ */
+#clock {
+    padding: 0 12px;
+    color: #00ffff;
+    font-weight: bold;
+}
+
+/* ---------------------------------------------------------------------------
+ * Right-side modules — shared base
+ * ------------------------------------------------------------------------ */
+#custom-tenant-count,
+#custom-ai-status,
+#pulseaudio,
+#network,
+#cpu,
+#memory,
+#battery,
+#tray {
+    padding: 0 8px;
+    margin: 0 2px;
+    background-color: #1a1a1a;
+    color: #00ff00;
+}
+
+/* Module-specific overrides */
+#custom-tenant-count {
+    color: #ff00ff;
+}
+
+#custom-ai-status {
+    color: #0088ff;
+}
+
+#pulseaudio {
+    color: #e0e0e0;
+}
+
+#pulseaudio.muted {
+    color: #333333;
+}
+
+#network {
+    color: #00ffff;
+}
+
+#network.disconnected {
+    color: #ff0055;
+}
+
+#cpu {
+    color: #ffcc00;
+}
+
+#memory {
+    color: #ff6600;
+}
+
+#battery {
+    color: #00ff00;
+}
+
+#battery.charging {
+    color: #00ffff;
+}
+
+#battery.warning:not(.charging) {
+    color: #ff6600;
+}
+
+#battery.critical:not(.charging) {
+    background-color: #ff0055;
+    color: #0a0a0a;
+    animation: blink 0.5s linear infinite alternate;
+}
+
+@keyframes blink {
+    to {
+        background-color: #1a1a1a;
+        color: #ff0055;
+    }
+}
+
+#tray {
+    background-color: transparent;
+}
+
+#tray > .passive {
+    -gtk-icon-effect: dim;
+}
+
+#tray > .needs-attention {
+    -gtk-icon-effect: highlight;
+    background-color: #ff6600;
+}
+
+/* ---------------------------------------------------------------------------
+ * Hover effects
+ * ------------------------------------------------------------------------ */
+#custom-tenant-count:hover,
+#custom-ai-status:hover,
+#pulseaudio:hover,
+#network:hover,
+#cpu:hover,
+#memory:hover,
+#battery:hover {
+    background-color: #333333;
+    color: #ff00ff;
+}

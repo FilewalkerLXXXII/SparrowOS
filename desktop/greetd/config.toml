@@ -1,0 +1,16 @@
+# SparrowOS greetd Login Manager Configuration
+# Cyberpunk "Hackers" aesthetic greeter
+
+[terminal]
+# Virtual terminal to use
+vt = 1
+
+[default_session]
+# tuigreet with SparrowOS cyberpunk theme
+command = "tuigreet --time --remember --remember-session --asterisks --greeting 'SPARROW OS // AUTHENTICATE' --cmd sway"
+user = "greeter"
+
+[initial_session]
+# Optional: auto-login for single-user setups (commented out by default)
+# command = "sway"
+# user = "sparrow"

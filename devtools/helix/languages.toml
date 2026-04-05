@@ -1,0 +1,160 @@
+# SparrowOS Helix Language Server Configurations
+# Auto-format on save enabled for all configured languages
+
+# ---------------------------------------------------------------------------
+# Rust
+# ---------------------------------------------------------------------------
+[[language]]
+name = "rust"
+auto-format = true
+language-servers = ["rust-analyzer"]
+
+[language-server.rust-analyzer]
+command = "rust-analyzer"
+
+[language-server.rust-analyzer.config]
+check.command = "clippy"
+cargo.features = "all"
+inlayHints.closingBraceHints.enable = true
+inlayHints.typeHints.enable = true
+inlayHints.parameterHints.enable = true
+inlayHints.chainingHints.enable = true
+procMacro.enable = true
+
+# ---------------------------------------------------------------------------
+# Python
+# ---------------------------------------------------------------------------
+[[language]]
+name = "python"
+auto-format = true
+language-servers = ["pyright"]
+formatter = { command = "black", args = ["-", "--quiet"] }
+
+[language-server.pyright]
+command = "pyright-langserver"
+args = ["--stdio"]
+
+[language-server.pyright.config.python.analysis]
+typeCheckingMode = "basic"
+autoImportCompletions = true
+
+# ---------------------------------------------------------------------------
+# TypeScript
+# ---------------------------------------------------------------------------
+[[language]]
+name = "typescript"
+auto-format = true
+language-servers = ["typescript-language-server"]
+formatter = { command = "prettier", args = ["--parser", "typescript"] }
+
+[[language]]
+name = "tsx"
+auto-format = true
+language-servers = ["typescript-language-server"]
+formatter = { command = "prettier", args = ["--parser", "typescript"] }
+
+[[language]]
+name = "javascript"
+auto-format = true
+language-servers = ["typescript-language-server"]
+formatter = { command = "prettier", args = ["--parser", "babel"] }
+
+[language-server.typescript-language-server]
+command = "typescript-language-server"
+args = ["--stdio"]
+
+[language-server.typescript-language-server.config.typescript.inlayHints]
+includeInlayParameterNameHints = "all"
+includeInlayFunctionParameterTypeHints = true
+includeInlayVariableTypeHints = true
+includeInlayPropertyDeclarationTypeHints = true
+
+# ---------------------------------------------------------------------------
+# Go
+# ---------------------------------------------------------------------------
+[[language]]
+name = "go"
+auto-format = true
+language-servers = ["gopls"]
+formatter = { command = "goimports" }
+
+[language-server.gopls]
+command = "gopls"
+
+[language-server.gopls.config.hints]
+assignVariableTypes = true
+compositeLiteralFields = true
+constantValues = true
+functionTypeParameters = true
+parameterNames = true
+rangeVariableTypes = true
+
+# ---------------------------------------------------------------------------
+# C / C++
+# ---------------------------------------------------------------------------
+[[language]]
+name = "c"
+auto-format = true
+language-servers = ["clangd"]
+formatter = { command = "clang-format" }
+
+[[language]]
+name = "cpp"
+auto-format = true
+language-servers = ["clangd"]
+formatter = { command = "clang-format" }
+
+[language-server.clangd]
+command = "clangd"
+args = [
+    "--background-index",
+    "--clang-tidy",
+    "--completion-style=detailed",
+    "--header-insertion=iwyu",
+    "--pch-storage=memory",
+]
+
+# ---------------------------------------------------------------------------
+# Shell / Bash
+# ---------------------------------------------------------------------------
+[[language]]
+name = "bash"
+auto-format = true
+language-servers = ["bash-language-server"]
+formatter = { command = "shfmt", args = ["-i", "4", "-ci"] }
+
+[language-server.bash-language-server]
+command = "bash-language-server"
+args = ["start"]
+
+# ---------------------------------------------------------------------------
+# TOML
+# ---------------------------------------------------------------------------
+[[language]]
+name = "toml"
+auto-format = true
+formatter = { command = "taplo", args = ["fmt", "-"] }
+
+# ---------------------------------------------------------------------------
+# JSON
+# ---------------------------------------------------------------------------
+[[language]]
+name = "json"
+auto-format = true
+formatter = { command = "prettier", args = ["--parser", "json"] }
+
+# ---------------------------------------------------------------------------
+# YAML
+# ---------------------------------------------------------------------------
+[[language]]
+name = "yaml"
+auto-format = true
+formatter = { command = "prettier", args = ["--parser", "yaml"] }
+
+# ---------------------------------------------------------------------------
+# Markdown
+# ---------------------------------------------------------------------------
+[[language]]
+name = "markdown"
+auto-format = true
+formatter = { command = "prettier", args = ["--parser", "markdown"] }

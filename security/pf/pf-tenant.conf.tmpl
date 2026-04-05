@@ -1,0 +1,45 @@
+# ===========================================================================
+# SparrowOS -- Per-Tenant PF Anchor Rules (Template)
+# ===========================================================================
+# This template is expanded by the tenant provisioning system.  The
+# rendered output is loaded as a pf anchor:
+#
+#   pfctl -a "tenants/{{TENANT_NAME}}" -f /etc/pf/tenants/{{TENANT_NAME}}.conf
+#
+# Placeholders:
+#   {{TENANT_NAME}}  -- short identifier for the tenant (e.g. "acme")
+#   {{TENANT_IP}}    -- IPv4 address assigned to the tenant jail/vnet
+#
+# The parent pf.conf should include:
+#   anchor "tenants/*"
+# ===========================================================================
+
+# ---- Tables ---------------------------------------------------------------
+# Load the global AI-allowed hosts table (shared across tenants).
+table <ai_allowed> persist file "/etc/pf/tables/ai-allowed-hosts"
+
+# ---- Outbound from tenant -------------------------------------------------
+# Allow the tenant to initiate connections to the outside world.
+pass out quick on egress proto { tcp, udp } from {{TENANT_IP}} modulate state
+
+# ---- DNS ------------------------------------------------------------------
+# Explicitly allow DNS so name resolution works even if other rules tighten.
+pass out quick on egress proto { tcp, udp } from {{TENANT_IP}} to any port 53
+
+# ---- Established / related connections ------------------------------------
+# Allow return traffic for connections the tenant has already established.
+pass in quick on egress proto { tcp, udp } to {{TENANT_IP}} keep state
+
+# ---- Block inbound from other tenants -------------------------------------
+# Traffic originating from the tenant bridge network that is NOT from this
+# tenant's own IP is dropped.  This prevents lateral movement between
+# tenants on the same host.
+block in quick on tenant_bridge from ! {{TENANT_IP}} to {{TENANT_IP}}
+
+# ---- AI API access --------------------------------------------------------
+# If an AI-allowed table is loaded, ensure the tenant can reach those hosts.
+pass out quick on egress proto tcp from {{TENANT_IP}} to <ai_allowed> port 443
+
+# ---- Default deny inbound from internet -----------------------------------
+# Any unsolicited inbound traffic from the public interface is blocked.
+block in on egress to {{TENANT_IP}}

@@ -1,0 +1,69 @@
+# SparrowOS Zsh Environment
+# Loaded for ALL shell instances (login, interactive, scripts)
+
+# ---------------------------------------------------------------------------
+# Locale
+# ---------------------------------------------------------------------------
+export LANG=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
+
+# ---------------------------------------------------------------------------
+# Default programs
+# ---------------------------------------------------------------------------
+export EDITOR=hx
+export VISUAL=hx
+export PAGER=less
+export BROWSER=firefox
+export TERM=xterm-256color
+
+# ---------------------------------------------------------------------------
+# XDG Base Directories
+# ---------------------------------------------------------------------------
+export XDG_CONFIG_HOME="${HOME}/.config"
+export XDG_DATA_HOME="${HOME}/.local/share"
+export XDG_CACHE_HOME="${HOME}/.cache"
+export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+
+# ---------------------------------------------------------------------------
+# PATH
+# ---------------------------------------------------------------------------
+typeset -U path  # Deduplicate PATH entries
+
+path=(
+    "$HOME/.local/bin"
+    "$HOME/.cargo/bin"
+    "$HOME/.go/bin"
+    "$HOME/.npm-global/bin"
+    "/usr/local/bin"
+    "/usr/local/sbin"
+    $path
+)
+
+export PATH
+
+# ---------------------------------------------------------------------------
+# Less configuration
+# ---------------------------------------------------------------------------
+export LESS="-R -F -X --mouse"
+export LESSHISTFILE="${XDG_DATA_HOME}/less/history"
+
+# ---------------------------------------------------------------------------
+# Man pages
+# ---------------------------------------------------------------------------
+export MANPAGER="less -R --use-color -Dd+g -Du+c"
+
+# ---------------------------------------------------------------------------
+# Rust
+# ---------------------------------------------------------------------------
+[[ -f "$HOME/.cargo/env" ]] && source "$HOME/.cargo/env"
+
+# ---------------------------------------------------------------------------
+# Go
+# ---------------------------------------------------------------------------
+export GOPATH="$HOME/.go"
+
+# ---------------------------------------------------------------------------
+# SparrowOS
+# ---------------------------------------------------------------------------
+export SPARROW_HOME="/etc/sparrow"
+export SPARROW_CONFIG="${XDG_CONFIG_HOME}/sparrow"

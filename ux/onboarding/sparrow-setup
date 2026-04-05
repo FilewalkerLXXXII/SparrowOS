@@ -1,0 +1,253 @@
+#!/bin/sh
+#
+# sparrow-setup — SparrowOS First-Run Onboarding Wizard
+#
+# TUI wizard using dialog(1) that configures SparrowOS on first boot.
+# Runs automatically on first login, then disables itself.
+#
+
+set -eu
+
+SPARROW_CONF="/usr/local/etc/sparrow"
+SETUP_DONE_FLAG="${SPARROW_CONF}/.setup-complete"
+
+# Skip if already completed
+if [ -f "$SETUP_DONE_FLAG" ]; then
+    exit 0
+fi
+
+# Require root for system configuration
+if [ "$(id -u)" -ne 0 ]; then
+    echo "sparrow-setup must run as root. Please run: sudo sparrow-setup"
+    exit 1
+fi
+
+# Check for dialog
+if ! command -v dialog >/dev/null 2>&1; then
+    echo "dialog not found. Install with: pkg install dialog"
+    exit 1
+fi
+
+BACKTITLE="SparrowOS Setup // Speed and Security with Simple-intuitive UX"
+TMPFILE=$(mktemp)
+trap 'rm -f "$TMPFILE"' EXIT
+
+# ============================================================================
+# STEP 1: WELCOME
+# ============================================================================
+
+dialog --backtitle "$BACKTITLE" \
+    --title "Welcome to SparrowOS" \
+    --msgbox "\n\
+  ███████╗██████╗  █████╗ ██████╗ ██████╗  ██████╗ ██╗    ██╗\n\
+  ██╔════╝██╔══██╗██╔══██╗██╔══██╗██╔══██╗██╔═══██╗██║    ██║\n\
+  ███████╗██████╔╝███████║██████╔╝██████╔╝██║   ██║██║ █╗ ██║\n\
+  ╚════██║██╔═══╝ ██╔══██║██╔══██╗██╔══██╗██║   ██║██║███╗██║\n\
+  ███████║██║     ██║  ██║██║  ██║██║  ██║╚██████╔╝╚███╔███╔╝\n\
+  ╚══════╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝  ╚══╝╚══╝\n\
+\n\
+  Welcome to SparrowOS — a secure development operating system.\n\
+\n\
+  This wizard will configure your installation.\n\
+  Press ENTER to continue." 22 72
+
+# ============================================================================
+# STEP 2: INSTALL MODE
+# ============================================================================
+
+dialog --backtitle "$BACKTITLE" \
+    --title "Installation Mode" \
+    --radiolist "\nSelect how you want to use SparrowOS:\n" 14 60 3 \
+    "hybrid"      "Desktop + Multi-Tenant Server (recommended)" on \
+    "workstation"  "Desktop only (local development)" off \
+    "server"       "Server only (headless, tenants via SSH/VPN)" off \
+    2>"$TMPFILE"
+
+INSTALL_MODE=$(cat "$TMPFILE")
+[ -z "$INSTALL_MODE" ] && INSTALL_MODE="hybrid"
+
+# ============================================================================
+# STEP 3: ADMIN USER
+# ============================================================================
+
+dialog --backtitle "$BACKTITLE" \
+    --title "Admin User" \
+    --inputbox "\nEnter a username for the admin account:" 10 50 \
+    2>"$TMPFILE"
+
+ADMIN_USER=$(cat "$TMPFILE")
+[ -z "$ADMIN_USER" ] && ADMIN_USER="admin"
+
+# Create user
+if ! id "$ADMIN_USER" >/dev/null 2>&1; then
+    pw useradd -n "$ADMIN_USER" -m -s /usr/local/bin/zsh -G wheel,operator
+    dialog --backtitle "$BACKTITLE" \
+        --title "Set Password" \
+        --passwordbox "\nSet password for $ADMIN_USER:" 10 50 \
+        2>"$TMPFILE"
+    echo "$(cat "$TMPFILE")" | pw usermod "$ADMIN_USER" -h 0
+fi
+
+# Generate SSH key
+dialog --backtitle "$BACKTITLE" \
+    --title "SSH Key" \
+    --yesno "\nGenerate an SSH keypair for $ADMIN_USER?" 8 50 && {
+    _home=$(pw usershow "$ADMIN_USER" | cut -d: -f9)
+    su -l "$ADMIN_USER" -c "ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N ''" 2>/dev/null || true
+    dialog --backtitle "$BACKTITLE" \
+        --title "SSH Public Key" \
+        --msgbox "\nYour public key:\n\n$(cat "${_home}/.ssh/id_ed25519.pub" 2>/dev/null || echo 'Key generation failed')" 12 72
+} || true
+
+# ============================================================================
+# STEP 4: AI TOOL API KEYS
+# ============================================================================
+
+mkdir -p "${SPARROW_CONF}/ai-keys"
+chmod 700 "${SPARROW_CONF}/ai-keys"
+
+for _tool in "Anthropic (Claude Code):anthropic" "OpenAI (Codex):openai" "Google (Gemini):google"; do
+    _label=$(echo "$_tool" | cut -d: -f1)
+    _file=$(echo "$_tool" | cut -d: -f2)
+
+    dialog --backtitle "$BACKTITLE" \
+        --title "AI API Key: $_label" \
+        --inputbox "\nEnter your $_label API key (leave blank to skip):" 10 60 \
+        2>"$TMPFILE"
+
+    _key=$(cat "$TMPFILE")
+    if [ -n "$_key" ]; then
+        echo "$_key" > "${SPARROW_CONF}/ai-keys/${_file}"
+        chmod 600 "${SPARROW_CONF}/ai-keys/${_file}"
+    fi
+done
+
+# ============================================================================
+# STEP 5: GIT CONFIGURATION
+# ============================================================================
+
+dialog --backtitle "$BACKTITLE" \
+    --title "Git Configuration" \
+    --form "\nConfigure git defaults:" 12 60 2 \
+    "Name:"  1 1 "" 1 10 40 0 \
+    "Email:" 2 1 "" 2 10 40 0 \
+    2>"$TMPFILE"
+
+_git_name=$(sed -n '1p' "$TMPFILE")
+_git_email=$(sed -n '2p' "$TMPFILE")
+_home=$(pw usershow "$ADMIN_USER" | cut -d: -f9)
+
+if [ -n "$_git_name" ] || [ -n "$_git_email" ]; then
+    su -l "$ADMIN_USER" -c "git config --global user.name '${_git_name}'" 2>/dev/null || true
+    su -l "$ADMIN_USER" -c "git config --global user.email '${_git_email}'" 2>/dev/null || true
+fi
+
+# ============================================================================
+# STEP 6: SECURITY LEVEL
+# ============================================================================
+
+dialog --backtitle "$BACKTITLE" \
+    --title "Security Level" \
+    --radiolist "\nChoose security posture:\n" 12 65 2 \
+    "standard" "MAC permissive, basic pf (developer-friendly)" on \
+    "hardened" "MAC enforcing, strict pf, securelevel=1" off \
+    2>"$TMPFILE"
+
+SEC_LEVEL=$(cat "$TMPFILE")
+[ -z "$SEC_LEVEL" ] && SEC_LEVEL="standard"
+
+if [ "$SEC_LEVEL" = "hardened" ]; then
+    sysctl security.mac.biba.enabled=1 2>/dev/null || true
+    # Set securelevel to 1 on next boot
+    echo 'kern.securelevel=1' >> /etc/sysctl.conf
+fi
+
+# ============================================================================
+# STEP 7: THEME ACCENT
+# ============================================================================
+
+dialog --backtitle "$BACKTITLE" \
+    --title "Theme Accent Color" \
+    --radiolist "\nChoose your primary accent color:\n" 12 50 3 \
+    "green"   "#00ff00 Neon Green (classic hacker)" on \
+    "cyan"    "#00ffff Cyan (cool blue)" off \
+    "magenta" "#ff00ff Magenta (hot pink)" off \
+    2>"$TMPFILE"
+
+ACCENT=$(cat "$TMPFILE")
+[ -z "$ACCENT" ] && ACCENT="green"
+echo "SPARROW_ACCENT=${ACCENT}" >> "${SPARROW_CONF}/sparrow.conf"
+
+# ============================================================================
+# STEP 8: FIRST TENANT (Hybrid/Server only)
+# ============================================================================
+
+if [ "$INSTALL_MODE" = "hybrid" ] || [ "$INSTALL_MODE" = "server" ]; then
+    dialog --backtitle "$BACKTITLE" \
+        --title "First Tenant" \
+        --yesno "\nCreate a tenant workspace now?" 8 50 && {
+
+        dialog --backtitle "$BACKTITLE" \
+            --title "Tenant Name" \
+            --inputbox "\nEnter tenant name (lowercase, no spaces):" 10 50 \
+            2>"$TMPFILE"
+
+        _tenant=$(cat "$TMPFILE")
+        if [ -n "$_tenant" ]; then
+            sparrow-tenant create "$_tenant" --profile medium --ai claude 2>/dev/null || \
+                dialog --msgbox "Tenant creation will complete after reboot." 8 50
+        fi
+    } || true
+fi
+
+# ============================================================================
+# APPLY MODE-SPECIFIC CONFIGURATION
+# ============================================================================
+
+case "$INSTALL_MODE" in
+    workstation)
+        # Disable tenant/server services
+        sysrc wireguard_enable="NO" 2>/dev/null || true
+        ;;
+    server)
+        # Disable desktop services
+        sysrc greetd_enable="NO" 2>/dev/null || true
+        sysrc seatd_enable="NO" 2>/dev/null || true
+        ;;
+    hybrid)
+        # Everything enabled (default rc.conf)
+        ;;
+esac
+
+# Save config
+cat > "${SPARROW_CONF}/sparrow.conf" <<EOF
+SPARROW_MODE=${INSTALL_MODE}
+SPARROW_ADMIN=${ADMIN_USER}
+SPARROW_SECURITY=${SEC_LEVEL}
+SPARROW_ACCENT=${ACCENT}
+SPARROW_SETUP_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+EOF
+
+# Copy skeleton configs to admin user
+_home=$(pw usershow "$ADMIN_USER" | cut -d: -f9)
+if [ -d /usr/local/share/sparrow/skel ]; then
+    cp -Rn /usr/local/share/sparrow/skel/. "${_home}/" 2>/dev/null || true
+    chown -R "${ADMIN_USER}:${ADMIN_USER}" "${_home}/.config" 2>/dev/null || true
+fi
+
+# Mark setup complete
+touch "$SETUP_DONE_FLAG"
+
+dialog --backtitle "$BACKTITLE" \
+    --title "Setup Complete" \
+    --msgbox "\n\
+  SparrowOS is configured!\n\
+\n\
+  Mode:     ${INSTALL_MODE}\n\
+  Admin:    ${ADMIN_USER}\n\
+  Security: ${SEC_LEVEL}\n\
+  Accent:   ${ACCENT}\n\
+\n\
+  Press ENTER to start using SparrowOS." 14 50
+
+clear

@@ -1,0 +1,23 @@
+# ===========================================================================
+# SparrowOS -- AI API Allowed Hosts
+# ===========================================================================
+# This file is loaded by pf into the <ai_allowed> table.  Tenants with
+# AI workloads are permitted outbound HTTPS (port 443) to these hosts.
+#
+# pf resolves hostnames to IP addresses at table load time.  Reload the
+# table after DNS changes:
+#
+#   pfctl -t ai_allowed -T replace -f /etc/pf/tables/ai-allowed-hosts
+#
+# Format: one hostname or IP address per line.  Comments (#) and blank
+# lines are ignored.
+# ===========================================================================
+
+# Anthropic (Claude API)
+api.anthropic.com
+
+# OpenAI (GPT API)
+api.openai.com
+
+# Google (Gemini / PaLM / Generative Language API)
+generativelanguage.googleapis.com

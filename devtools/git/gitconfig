@@ -1,0 +1,90 @@
+# SparrowOS Git Configuration
+# Default settings for the cyberpunk development environment
+
+[user]
+    # Configured per-tenant; these are placeholders
+    name =
+    email =
+
+[init]
+    defaultBranch = main
+
+[core]
+    editor = hx
+    pager = less -FR
+    autocrlf = input
+    whitespace = fix,-indent-with-non-tab,trailing-space,cr-at-eol
+    excludesFile = ~/.config/git/ignore
+
+[pull]
+    rebase = true
+
+[push]
+    default = current
+    autoSetupRemote = true
+    followTags = true
+
+[fetch]
+    prune = true
+    pruneTags = true
+
+[diff]
+    algorithm = histogram
+    colorMoved = default
+    mnemonicPrefix = true
+
+[merge]
+    conflictstyle = diff3
+    tool = hx
+
+[rebase]
+    autoStash = true
+    autoSquash = true
+
+[help]
+    autocorrect = prompt
+
+[color]
+    ui = true
+
+[color "branch"]
+    current = cyan bold
+    local = green
+    remote = magenta
+
+[color "diff"]
+    meta = yellow
+    frag = cyan bold
+    old = red
+    new = green
+    whitespace = red reverse
+
+[color "status"]
+    added = green
+    changed = yellow
+    untracked = magenta
+
+[alias]
+    st = status -sb
+    co = checkout
+    br = branch
+    ci = commit
+    lg = log --oneline --graph --decorate --all -20
+    last = log -1 HEAD --stat
+    unstage = reset HEAD --
+    amend = commit --amend --no-edit
+    wip = !git add -A && git commit -m 'wip: work in progress [skip ci]'
+    undo = reset --soft HEAD~1
+    branches = branch -a --sort=-committerdate
+    tags = tag -l --sort=-version:refname
+    remotes = remote -v
+    contributors = shortlog -sn --no-merges
+
+[credential]
+    helper = cache --timeout=3600
+
+[url "git@github.com:"]
+    insteadOf = gh:
+
+[url "git@gitlab.com:"]
+    insteadOf = gl:

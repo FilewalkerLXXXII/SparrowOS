@@ -1,0 +1,562 @@
+#!/bin/sh
+#
+# sparrow-tenant — SparrowOS Multi-Tenant Workspace Manager
+#
+# Manages isolated developer workspaces using FreeBSD VNET jails,
+# ZFS encrypted datasets, rctl resource limits, and WireGuard VPN.
+#
+# Usage:
+#   sparrow-tenant create <name> [--profile small|medium|large] [--ai claude,codex,gemini]
+#   sparrow-tenant destroy <name>
+#   sparrow-tenant list
+#   sparrow-tenant status <name>
+#   sparrow-tenant resize <name> --profile <profile>
+#   sparrow-tenant ssh-key <name> add <pubkey>
+#   sparrow-tenant snapshot <name>
+#   sparrow-tenant rollback <name> [snapshot]
+#   sparrow-tenant exec <name> <command...>
+#   sparrow-tenant logs <name>
+#   sparrow-tenant code-server <name> start|stop|status
+#
+
+set -eu
+
+# ============================================================================
+# CONFIGURATION
+# ============================================================================
+
+SPARROW_DIR="/usr/local/etc/sparrow"
+TENANT_DIR="${SPARROW_DIR}/tenants"
+JAIL_DIR="/jails"
+TENANT_POOL="sparrow/tenants"
+BRIDGE_IF="bridge0"
+PF_ANCHOR_DIR="/etc/pf.anchors"
+WG_DIR="${SPARROW_DIR}/wireguard"
+RCTL_PROFILE_DIR="${SPARROW_DIR}/rctl-profiles"
+LOG_TAG="sparrow-tenant"
+
+# IP allocation: tenants get 10.0.X.2 where X is auto-assigned
+TENANT_NET_PREFIX="10.0"
+TENANT_NET_MASK="24"
+
+# Default profile
+DEFAULT_PROFILE="medium"
+
+# ============================================================================
+# UTILITY FUNCTIONS
+# ============================================================================
+
+log_info() {
+    logger -t "${LOG_TAG}" -p local0.info "$*"
+    printf "\033[0;36m[sparrow]\033[0m %s\n" "$*"
+}
+
+log_error() {
+    logger -t "${LOG_TAG}" -p local0.err "$*"
+    printf "\033[0;31m[sparrow] ERROR:\033[0m %s\n" "$*" >&2
+}
+
+log_success() {
+    logger -t "${LOG_TAG}" -p local0.info "$*"
+    printf "\033[0;32m[sparrow]\033[0m %s\n" "$*"
+}
+
+die() {
+    log_error "$*"
+    exit 1
+}
+
+require_root() {
+    [ "$(id -u)" -eq 0 ] || die "This command requires root privileges"
+}
+
+tenant_exists() {
+    [ -f "${TENANT_DIR}/${1}/tenant.conf" ]
+}
+
+get_tenant_config() {
+    _name="$1"
+    _key="$2"
+    grep "^${_key}=" "${TENANT_DIR}/${_name}/tenant.conf" | cut -d= -f2-
+}
+
+next_tenant_id() {
+    # Find next available tenant subnet ID (1-254)
+    _id=1
+    while [ "$_id" -lt 255 ]; do
+        if ! grep -qr "TENANT_SUBNET_ID=${_id}$" "${TENANT_DIR}" 2>/dev/null; then
+            echo "$_id"
+            return
+        fi
+        _id=$((_id + 1))
+    done
+    die "No available tenant subnet IDs (max 254 tenants)"
+}
+
+# ============================================================================
+# SUBCOMMANDS
+# ============================================================================
+
+cmd_create() {
+    _name=""
+    _profile="${DEFAULT_PROFILE}"
+    _ai_tools=""
+
+    # Parse arguments
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --profile)
+                shift
+                _profile="$1"
+                ;;
+            --ai)
+                shift
+                _ai_tools="$1"
+                ;;
+            -*)
+                die "Unknown option: $1"
+                ;;
+            *)
+                _name="$1"
+                ;;
+        esac
+        shift
+    done
+
+    [ -n "$_name" ] || die "Usage: sparrow-tenant create <name> [--profile small|medium|large] [--ai claude,codex,gemini]"
+    require_root
+
+    # Validate
+    echo "$_name" | grep -qE '^[a-z][a-z0-9_-]{0,30}$' || \
+        die "Tenant name must be lowercase alphanumeric (max 31 chars): $_name"
+    tenant_exists "$_name" && die "Tenant '$_name' already exists"
+    [ -f "${RCTL_PROFILE_DIR}/${_profile}.conf" ] || die "Unknown profile: $_profile"
+
+    log_info "Creating tenant '$_name' with profile '$_profile'..."
+
+    # Allocate subnet ID and IP
+    _subnet_id=$(next_tenant_id)
+    _tenant_ip="${TENANT_NET_PREFIX}.${_subnet_id}.2"
+    _gateway_ip="${TENANT_NET_PREFIX}.${_subnet_id}.1"
+    _epair="epair${_subnet_id}"
+
+    # 1. Create tenant config directory
+    mkdir -p "${TENANT_DIR}/${_name}"
+
+    # 2. Create ZFS dataset with encryption and quota
+    _quota=$(grep '^# ZFS quota:' "${RCTL_PROFILE_DIR}/${_profile}.conf" | sed 's/.*: //')
+    [ -z "$_quota" ] && _quota="100GB"
+
+    log_info "Creating ZFS dataset ${TENANT_POOL}/${_name} (quota: ${_quota})..."
+    zfs create \
+        -o encryption=aes-256-gcm \
+        -o keyformat=passphrase \
+        -o keylocation=prompt \
+        -o quota="${_quota}" \
+        -o compression=lz4 \
+        -o atime=off \
+        -o setuid=off \
+        -o mountpoint="${JAIL_DIR}/tenants/${_name}" \
+        "${TENANT_POOL}/${_name}"
+
+    # 3. Create VNET epair interface
+    log_info "Setting up network: ${_tenant_ip}/${TENANT_NET_MASK}..."
+    ifconfig "${_epair}" create
+    ifconfig "${BRIDGE_IF}" addm "${_epair}a"
+    ifconfig "${_epair}a" up
+
+    # 4. Create VNET jail
+    log_info "Creating VNET jail..."
+    cat > "${TENANT_DIR}/${_name}/jail.conf" <<JAILEOF
+${_name} {
+    host.hostname = "${_name}.sparrow.local";
+    path = "${JAIL_DIR}/tenants/${_name}";
+
+    # VNET networking
+    vnet;
+    vnet.interface = "${_epair}b";
+    exec.prestart  = "ifconfig ${_epair}b up";
+    exec.start     = "/bin/sh /etc/rc";
+    exec.stop      = "/bin/sh /etc/rc.shutdown";
+    exec.poststop  = "ifconfig ${_epair}a destroy";
+
+    # Security
+    allow.raw_sockets = 0;
+    allow.set_hostname = 0;
+    allow.sysvipc = 0;
+    allow.mount = 0;
+    devfs_ruleset = 4;
+    enforce_statfs = 2;
+
+    # Persistence
+    persist;
+    mount.devfs;
+}
+JAILEOF
+
+    # 5. Apply rctl resource limits
+    log_info "Applying rctl limits from profile '${_profile}'..."
+    while IFS= read -r line; do
+        case "$line" in
+            \#*|"") continue ;;
+            *)
+                rctl -a "jail:${_name}:${line}" 2>/dev/null || true
+                ;;
+        esac
+    done < "${RCTL_PROFILE_DIR}/${_profile}.conf"
+
+    # 6. Generate WireGuard keypair
+    log_info "Generating WireGuard keys..."
+    mkdir -p "${WG_DIR}/peers/${_name}"
+    wg genkey | tee "${WG_DIR}/peers/${_name}/privatekey" | wg pubkey > "${WG_DIR}/peers/${_name}/publickey"
+    chmod 600 "${WG_DIR}/peers/${_name}/privatekey"
+
+    # Add peer to host WireGuard config
+    _pubkey=$(cat "${WG_DIR}/peers/${_name}/publickey")
+    cat >> "${WG_DIR}/wg0.conf" <<WGEOF
+
+# Tenant: ${_name}
+[Peer]
+PublicKey = ${_pubkey}
+AllowedIPs = ${_tenant_ip}/32
+WGEOF
+
+    # 7. Load per-tenant pf anchor
+    log_info "Loading pf anchor..."
+    sed -e "s/{{TENANT_NAME}}/${_name}/g" \
+        -e "s/{{TENANT_IP}}/${_tenant_ip}/g" \
+        /usr/local/etc/sparrow/pf-tenant.conf.tmpl \
+        > "${PF_ANCHOR_DIR}/tenant-${_name}.conf"
+    pfctl -a "tenant/${_name}" -f "${PF_ANCHOR_DIR}/tenant-${_name}.conf" 2>/dev/null || true
+
+    # 8. Write tenant config
+    cat > "${TENANT_DIR}/${_name}/tenant.conf" <<CONFEOF
+TENANT_NAME=${_name}
+TENANT_PROFILE=${_profile}
+TENANT_IP=${_tenant_ip}
+TENANT_GATEWAY=${_gateway_ip}
+TENANT_SUBNET_ID=${_subnet_id}
+TENANT_EPAIR=${_epair}
+TENANT_AI_TOOLS=${_ai_tools}
+TENANT_CREATED=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+TENANT_STATUS=active
+CONFEOF
+
+    # 9. Provision AI tools if requested
+    if [ -n "$_ai_tools" ]; then
+        log_info "Provisioning AI tools: ${_ai_tools}..."
+        /usr/local/bin/tenant-ai-provision.sh "$_name" "$_ai_tools" || \
+            log_error "AI tool provisioning failed (tenant created but AI tools not installed)"
+    fi
+
+    log_success "Tenant '$_name' created successfully!"
+    log_success "  IP:        ${_tenant_ip}"
+    log_success "  Profile:   ${_profile}"
+    log_success "  ZFS:       ${TENANT_POOL}/${_name}"
+    log_success "  WireGuard: peer config at ${WG_DIR}/peers/${_name}/"
+    [ -n "$_ai_tools" ] && log_success "  AI Tools:  ${_ai_tools}"
+}
+
+cmd_destroy() {
+    _name="$1"
+    require_root
+    tenant_exists "$_name" || die "Tenant '$_name' does not exist"
+
+    _subnet_id=$(get_tenant_config "$_name" "TENANT_SUBNET_ID")
+    _epair=$(get_tenant_config "$_name" "TENANT_EPAIR")
+
+    log_info "Destroying tenant '$_name'..."
+
+    # Stop jail
+    jail -r "$_name" 2>/dev/null || true
+
+    # Remove rctl limits
+    rctl -r "jail:${_name}" 2>/dev/null || true
+
+    # Remove pf anchor
+    pfctl -a "tenant/${_name}" -F all 2>/dev/null || true
+    rm -f "${PF_ANCHOR_DIR}/tenant-${_name}.conf"
+
+    # Remove WireGuard peer
+    rm -rf "${WG_DIR}/peers/${_name}"
+
+    # Destroy epair
+    ifconfig "${_epair}a" destroy 2>/dev/null || true
+
+    # Destroy ZFS dataset (with confirmation snapshot)
+    _snapshot="${TENANT_POOL}/${_name}@pre-destroy-$(date +%s)"
+    log_info "Creating safety snapshot: ${_snapshot}"
+    zfs snapshot "$_snapshot"
+    zfs destroy -r "${TENANT_POOL}/${_name}"
+
+    # Remove config
+    rm -rf "${TENANT_DIR}/${_name}"
+
+    log_success "Tenant '$_name' destroyed."
+}
+
+cmd_list() {
+    printf "\033[0;36m%-20s %-10s %-15s %-8s %-10s\033[0m\n" \
+        "NAME" "PROFILE" "IP" "STATUS" "AI TOOLS"
+    printf "%-20s %-10s %-15s %-8s %-10s\n" \
+        "----" "-------" "--" "------" "--------"
+
+    for _conf in "${TENANT_DIR}"/*/tenant.conf; do
+        [ -f "$_conf" ] || continue
+        _name=$(grep '^TENANT_NAME=' "$_conf" | cut -d= -f2)
+        _profile=$(grep '^TENANT_PROFILE=' "$_conf" | cut -d= -f2)
+        _ip=$(grep '^TENANT_IP=' "$_conf" | cut -d= -f2)
+        _status=$(grep '^TENANT_STATUS=' "$_conf" | cut -d= -f2)
+        _ai=$(grep '^TENANT_AI_TOOLS=' "$_conf" | cut -d= -f2)
+        [ -z "$_ai" ] && _ai="-"
+
+        # Color status
+        case "$_status" in
+            active)  _sc="\033[0;32m" ;;
+            stopped) _sc="\033[0;33m" ;;
+            *)       _sc="\033[0;31m" ;;
+        esac
+
+        printf "%-20s %-10s %-15s ${_sc}%-8s\033[0m %-10s\n" \
+            "$_name" "$_profile" "$_ip" "$_status" "$_ai"
+    done
+}
+
+cmd_status() {
+    _name="$1"
+    tenant_exists "$_name" || die "Tenant '$_name' does not exist"
+
+    _ip=$(get_tenant_config "$_name" "TENANT_IP")
+    _profile=$(get_tenant_config "$_name" "TENANT_PROFILE")
+    _created=$(get_tenant_config "$_name" "TENANT_CREATED")
+    _ai=$(get_tenant_config "$_name" "TENANT_AI_TOOLS")
+
+    printf "\033[0;36m=== Tenant: %s ===\033[0m\n" "$_name"
+    printf "Profile:     %s\n" "$_profile"
+    printf "IP:          %s\n" "$_ip"
+    printf "Created:     %s\n" "$_created"
+    printf "AI Tools:    %s\n" "${_ai:-none}"
+
+    # Jail status
+    if jls -j "$_name" >/dev/null 2>&1; then
+        printf "Jail:        \033[0;32mrunning\033[0m\n"
+        # Show rctl usage
+        printf "\nResource Usage:\n"
+        rctl -u "jail:${_name}" 2>/dev/null | while IFS= read -r line; do
+            printf "  %s\n" "$line"
+        done
+    else
+        printf "Jail:        \033[0;31mstopped\033[0m\n"
+    fi
+
+    # ZFS usage
+    _dataset="${TENANT_POOL}/${_name}"
+    if zfs list "$_dataset" >/dev/null 2>&1; then
+        _used=$(zfs get -H -o value used "$_dataset")
+        _quota=$(zfs get -H -o value quota "$_dataset")
+        _snap=$(zfs list -H -t snapshot -o name "$_dataset" 2>/dev/null | wc -l | tr -d ' ')
+        printf "\nStorage:\n"
+        printf "  Used:       %s / %s\n" "$_used" "$_quota"
+        printf "  Snapshots:  %s\n" "$_snap"
+    fi
+}
+
+cmd_snapshot() {
+    _name="$1"
+    require_root
+    tenant_exists "$_name" || die "Tenant '$_name' does not exist"
+
+    _snap="${TENANT_POOL}/${_name}@manual-$(date +%Y%m%d-%H%M%S)"
+    zfs snapshot "$_snap"
+    log_success "Snapshot created: $_snap"
+}
+
+cmd_rollback() {
+    _name="$1"
+    _snap="${2:-}"
+    require_root
+    tenant_exists "$_name" || die "Tenant '$_name' does not exist"
+
+    if [ -z "$_snap" ]; then
+        # Rollback to most recent snapshot
+        _snap=$(zfs list -H -t snapshot -o name -S creation "${TENANT_POOL}/${_name}" 2>/dev/null | head -1)
+        [ -n "$_snap" ] || die "No snapshots found for tenant '$_name'"
+    fi
+
+    log_info "Rolling back tenant '$_name' to snapshot: $_snap"
+    zfs rollback -r "$_snap"
+    log_success "Rollback complete."
+}
+
+cmd_exec() {
+    _name="$1"
+    shift
+    require_root
+    tenant_exists "$_name" || die "Tenant '$_name' does not exist"
+    jls -j "$_name" >/dev/null 2>&1 || die "Tenant '$_name' jail is not running"
+    jexec "$_name" "$@"
+}
+
+cmd_logs() {
+    _name="$1"
+    tenant_exists "$_name" || die "Tenant '$_name' does not exist"
+    grep "jail:${_name}" /var/log/audit/current 2>/dev/null || \
+        log_info "No audit logs found for tenant '$_name'"
+}
+
+cmd_ssh_key() {
+    _name="$1"
+    _action="$2"
+    _pubkey="$3"
+    require_root
+    tenant_exists "$_name" || die "Tenant '$_name' does not exist"
+
+    _user=$(get_tenant_config "$_name" "TENANT_NAME")
+    _home="${JAIL_DIR}/tenants/${_name}/home/${_user}"
+
+    case "$_action" in
+        add)
+            mkdir -p "${_home}/.ssh"
+            echo "$_pubkey" >> "${_home}/.ssh/authorized_keys"
+            chmod 700 "${_home}/.ssh"
+            chmod 600 "${_home}/.ssh/authorized_keys"
+            log_success "SSH key added for tenant '$_name'"
+            ;;
+        *)
+            die "Usage: sparrow-tenant ssh-key <name> add <pubkey>"
+            ;;
+    esac
+}
+
+cmd_code_server() {
+    _name="$1"
+    _action="$2"
+    require_root
+    tenant_exists "$_name" || die "Tenant '$_name' does not exist"
+
+    _ip=$(get_tenant_config "$_name" "TENANT_IP")
+
+    case "$_action" in
+        start)
+            jexec "$_name" code-server --bind-addr "${_ip}:8080" --auth none &
+            log_success "code-server started for tenant '$_name' at http://${_ip}:8080"
+            ;;
+        stop)
+            jexec "$_name" pkill -f code-server 2>/dev/null || true
+            log_success "code-server stopped for tenant '$_name'"
+            ;;
+        status)
+            if jexec "$_name" pgrep -f code-server >/dev/null 2>&1; then
+                printf "code-server: \033[0;32mrunning\033[0m at http://%s:8080\n" "$_ip"
+            else
+                printf "code-server: \033[0;31mstopped\033[0m\n"
+            fi
+            ;;
+        *)
+            die "Usage: sparrow-tenant code-server <name> start|stop|status"
+            ;;
+    esac
+}
+
+cmd_resize() {
+    _name=""
+    _profile=""
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --profile) shift; _profile="$1" ;;
+            -*) die "Unknown option: $1" ;;
+            *) _name="$1" ;;
+        esac
+        shift
+    done
+
+    require_root
+    [ -n "$_name" ] || die "Usage: sparrow-tenant resize <name> --profile <profile>"
+    [ -n "$_profile" ] || die "Must specify --profile"
+    tenant_exists "$_name" || die "Tenant '$_name' does not exist"
+    [ -f "${RCTL_PROFILE_DIR}/${_profile}.conf" ] || die "Unknown profile: $_profile"
+
+    log_info "Resizing tenant '$_name' to profile '${_profile}'..."
+
+    # Remove old rctl limits
+    rctl -r "jail:${_name}" 2>/dev/null || true
+
+    # Apply new limits
+    while IFS= read -r line; do
+        case "$line" in
+            \#*|"") continue ;;
+            *)
+                rctl -a "jail:${_name}:${line}" 2>/dev/null || true
+                ;;
+        esac
+    done < "${RCTL_PROFILE_DIR}/${_profile}.conf"
+
+    # Update ZFS quota
+    _quota=$(grep '^# ZFS quota:' "${RCTL_PROFILE_DIR}/${_profile}.conf" | sed 's/.*: //')
+    [ -n "$_quota" ] && zfs set "quota=${_quota}" "${TENANT_POOL}/${_name}"
+
+    # Update config
+    sed -i '' "s/^TENANT_PROFILE=.*/TENANT_PROFILE=${_profile}/" \
+        "${TENANT_DIR}/${_name}/tenant.conf"
+
+    log_success "Tenant '$_name' resized to profile '${_profile}'."
+}
+
+# ============================================================================
+# MAIN DISPATCH
+# ============================================================================
+
+usage() {
+    cat <<EOF
+SparrowOS Tenant Manager
+
+Usage: sparrow-tenant <command> [options]
+
+Commands:
+  create <name>     Create a new tenant workspace
+    --profile       Resource profile: small, medium, large (default: medium)
+    --ai            AI tools to install: claude,codex,gemini
+
+  destroy <name>    Destroy a tenant workspace
+  list              List all tenants
+  status <name>     Show tenant details and resource usage
+  resize <name>     Change tenant resource profile
+    --profile       New resource profile
+
+  ssh-key <name>    Manage tenant SSH keys
+    add <pubkey>    Add an SSH public key
+
+  snapshot <name>   Create a ZFS snapshot of tenant data
+  rollback <name>   Rollback to most recent (or specified) snapshot
+  exec <name> cmd   Execute a command inside tenant jail
+  logs <name>       View tenant audit logs
+
+  code-server <name>
+    start           Start code-server for tenant
+    stop            Stop code-server for tenant
+    status          Check code-server status
+
+EOF
+}
+
+[ $# -ge 1 ] || { usage; exit 1; }
+
+_cmd="$1"
+shift
+
+case "$_cmd" in
+    create)       cmd_create "$@" ;;
+    destroy)      cmd_destroy "$@" ;;
+    list)         cmd_list ;;
+    status)       cmd_status "$@" ;;
+    resize)       cmd_resize "$@" ;;
+    ssh-key)      cmd_ssh_key "$@" ;;
+    snapshot)     cmd_snapshot "$@" ;;
+    rollback)     cmd_rollback "$@" ;;
+    exec)         cmd_exec "$@" ;;
+    logs)         cmd_logs "$@" ;;
+    code-server)  cmd_code_server "$@" ;;
+    help|--help|-h) usage ;;
+    *)            die "Unknown command: $_cmd" ;;
+esac

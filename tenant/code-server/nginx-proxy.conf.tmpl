@@ -1,0 +1,88 @@
+# SparrowOS — nginx reverse proxy template for tenant code-server
+#
+# Placeholders (substituted by sparrow-tenant provisioning):
+#   {{TENANT_NAME}} — tenant identifier (used as subdomain)
+#   {{TENANT_IP}}   — jail VNET IP address
+#
+# code-server requires WebSocket support for its real-time editor
+# communication, so the Upgrade / Connection headers are mandatory.
+
+upstream codeserver_{{TENANT_NAME}} {
+    server {{TENANT_IP}}:8080;
+    keepalive 4;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name {{TENANT_NAME}}.sparrow.local;
+
+    # Redirect HTTP to HTTPS (uncomment if TLS is configured)
+    # return 301 https://$host$request_uri;
+
+    location / {
+        proxy_pass http://codeserver_{{TENANT_NAME}};
+
+        # --- WebSocket support (required for code-server) ---
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        # --- Standard proxy headers ---
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # --- Timeouts tuned for long-lived WebSocket connections ---
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
+        proxy_connect_timeout 10s;
+
+        # Disable buffering for real-time streaming
+        proxy_buffering off;
+    }
+
+    # Health-check endpoint for monitoring
+    location = /healthz {
+        proxy_pass http://codeserver_{{TENANT_NAME}}/healthz;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        access_log off;
+    }
+
+    # Deny access to hidden files
+    location ~ /\. {
+        deny all;
+        return 404;
+    }
+}
+
+# --- Optional TLS server block ---
+# Uncomment and configure when certificates are available.
+#
+# server {
+#     listen 443 ssl http2;
+#     listen [::]:443 ssl http2;
+#     server_name {{TENANT_NAME}}.sparrow.local;
+#
+#     ssl_certificate     /usr/local/etc/sparrow/tls/{{TENANT_NAME}}.crt;
+#     ssl_certificate_key /usr/local/etc/sparrow/tls/{{TENANT_NAME}}.key;
+#
+#     # Include shared TLS settings
+#     include /usr/local/etc/nginx/snippets/sparrow-tls.conf;
+#
+#     location / {
+#         proxy_pass http://codeserver_{{TENANT_NAME}};
+#         proxy_http_version 1.1;
+#         proxy_set_header Upgrade $http_upgrade;
+#         proxy_set_header Connection "upgrade";
+#         proxy_set_header Host $host;
+#         proxy_set_header X-Real-IP $remote_addr;
+#         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+#         proxy_set_header X-Forwarded-Proto $scheme;
+#         proxy_read_timeout 86400s;
+#         proxy_send_timeout 86400s;
+#         proxy_buffering off;
+#     }
+# }

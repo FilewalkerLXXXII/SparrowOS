@@ -1,0 +1,83 @@
+# SparrowOS Helix Editor Configuration
+# Cyberpunk "Hackers" aesthetic code editor
+
+theme = "sparrow"
+
+[editor]
+line-number = "relative"
+mouse = true
+auto-format = true
+auto-save = true
+true-color = true
+color-modes = true
+bufferline = "multiple"
+cursorline = true
+rulers = [100]
+idle-timeout = 250
+completion-trigger-len = 1
+scrolloff = 8
+shell = ["sh", "-c"]
+
+[editor.cursor-shape]
+insert = "bar"
+normal = "block"
+select = "underline"
+
+[editor.statusline]
+left = ["mode", "spinner", "file-name", "file-modification-indicator"]
+center = ["diagnostics"]
+right = ["selections", "position", "position-percentage", "file-type", "file-encoding"]
+separator = " | "
+mode.normal = "NORMAL"
+mode.insert = "INSERT"
+mode.select = "SELECT"
+
+[editor.lsp]
+display-messages = true
+display-inlay-hints = true
+
+[editor.file-picker]
+hidden = true
+follow-symlinks = true
+git-ignore = true
+git-global = true
+
+[editor.search]
+smart-case = true
+wrap-around = true
+
+[editor.indent-guides]
+render = true
+character = "│"
+skip-levels = 1
+
+[editor.gutters]
+layout = ["diagnostics", "spacer", "line-numbers", "spacer", "diff"]
+
+[editor.soft-wrap]
+enable = false
+
+[keys.normal]
+# Quick save
+"C-s" = ":w"
+# Quick quit
+"C-q" = ":q"
+# Buffer navigation
+"C-h" = "jump_view_left"
+"C-l" = "jump_view_right"
+"C-j" = "jump_view_down"
+"C-k" = "jump_view_up"
+
+[keys.normal.space]
+# File picker
+"f" = "file_picker"
+# Buffer picker
+"b" = "buffer_picker"
+# Symbol picker
+"s" = "symbol_picker"
+# Global search
+"/" = "global_search"
+
+[keys.insert]
+# Escape alternative
+"j" = { "k" = "normal_mode" }

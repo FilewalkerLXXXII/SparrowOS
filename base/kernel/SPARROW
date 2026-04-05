@@ -1,0 +1,117 @@
+#
+# SPARROW -- SparrowOS Custom Kernel Configuration
+#
+# Based on FreeBSD 15.0-RELEASE GENERIC with targeted modifications for:
+# - Security: Capsicum, MAC, audit
+# - Multi-tenant: VIMAGE, RACCT/RCTL
+# - Desktop: DRM, evdev
+#
+
+cpu		HAMMER
+ident		SPARROW
+
+# ============================================================================
+# INCLUDE GENERIC AS BASE
+# ============================================================================
+# Start from GENERIC and modify. Safer than building from scratch —
+# less risk of missing critical drivers on varied hardware.
+include		GENERIC
+
+# ============================================================================
+# REMOVE UNNECESSARY DRIVERS (reduce attack surface)
+# ============================================================================
+nooptions	SCTP			# No SCTP protocol support
+nodevice	fdc			# No floppy disk controller
+nodevice	ppc			# No parallel port
+
+# ============================================================================
+# SECURITY OPTIONS
+# ============================================================================
+
+# Mandatory Access Control framework
+options		MAC			# MAC framework
+options		MAC_BIBA		# Biba integrity policy
+options		MAC_MLS			# Multi-Level Security (confidentiality)
+options		MAC_LOMAC		# Low-watermark MAC policy
+
+# Capsicum capability-based sandboxing
+options		CAPABILITIES		# Capsicum capability mode
+options		CAPABILITY_MODE		# Capsicum enforcement
+
+# Audit framework (OpenBSM)
+options		AUDIT			# OpenBSM security event auditing
+
+# ============================================================================
+# MULTI-TENANT / VIRTUALIZATION OPTIONS
+# ============================================================================
+
+# VIMAGE: Virtual network stacks for jail isolation
+# Each VNET jail gets its own routing table, interfaces, firewall state
+options		VIMAGE
+
+# Resource accounting and control (required for rctl per-jail limits)
+options		RACCT			# Resource accounting
+options		RCTL			# Resource limits (CPU, memory, etc.)
+
+# Virtual networking devices for jail connectivity
+device		if_bridge		# Bridge interface (tenant interconnect)
+device		epair			# Virtual ethernet pairs (jail ↔ host)
+device		if_vlan			# VLAN support
+device		tap			# TAP devices (bhyve/VPN)
+device		tun			# TUN devices (WireGuard/VPN)
+device		bpf			# Berkeley Packet Filter (WireGuard needs this)
+
+# ============================================================================
+# PERFORMANCE OPTIONS
+# ============================================================================
+
+# ULE scheduler — best for interactive desktop workloads
+options		SCHED_ULE
+options		PREEMPTION		# Kernel thread preemption (desktop responsiveness)
+options		SMP			# Symmetric MultiProcessing
+
+# ============================================================================
+# GPU / WAYLAND / INPUT SUPPORT
+# ============================================================================
+
+# Direct Rendering Manager (required for Wayland compositors)
+device		drm			# DRM core
+device		i915kms			# Intel GPU driver
+device		amdgpu			# AMD GPU driver
+
+# Input event device (required for Wayland input handling)
+device		evdev			# Input event device layer
+device		uinput			# Userspace input injection
+
+# ============================================================================
+# FILESYSTEM OPTIONS
+# ============================================================================
+
+# ZFS is loaded as a module via loader.conf, not compiled into kernel
+# GELI (disk encryption) is loaded as a module via loader.conf
+
+# tmpfs for fast in-memory builds
+options		TMPFS			# Efficient memory filesystem
+
+# nullfs for jail filesystem sharing (thin jails mount host dirs)
+options		NULLFS			# Null filesystem (loopback mounts)
+
+# ============================================================================
+# NETWORKING
+# ============================================================================
+
+# pf packet filter (loaded as module, configured here for kernel awareness)
+device		pf			# Packet Filter firewall
+device		pflog			# PF logging interface
+device		pfsync			# PF state sync (future HA support)
+
+# WireGuard support (userspace via wireguard-go, kernel module if available)
+# Note: FreeBSD 15.0 may have in-kernel WireGuard — enable if present
+
+# ============================================================================
+# CRYPTO ACCELERATION
+# ============================================================================
+
+# AES-NI hardware acceleration (critical for GELI/ZFS encryption performance)
+device		aesni			# AES-NI crypto acceleration
+device		cryptodev		# /dev/crypto for userspace access

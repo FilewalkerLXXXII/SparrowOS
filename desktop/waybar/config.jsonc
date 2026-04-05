@@ -1,0 +1,121 @@
+// SparrowOS Waybar Configuration
+// Cyberpunk "Hackers" aesthetic status bar
+{
+    "layer": "top",
+    "position": "top",
+    "height": 30,
+    "spacing": 0,
+
+    "modules-left": [
+        "sway/workspaces",
+        "sway/window"
+    ],
+    "modules-center": [
+        "clock"
+    ],
+    "modules-right": [
+        "custom/tenant-count",
+        "custom/ai-status",
+        "pulseaudio",
+        "network",
+        "cpu",
+        "memory",
+        "battery",
+        "tray"
+    ],
+
+    // --- Left modules ---
+
+    "sway/workspaces": {
+        "disable-scroll": false,
+        "all-outputs": true,
+        "format": "{name}",
+        "persistent-workspaces": {
+            "1:term": [],
+            "2:code": [],
+            "3:web": [],
+            "4:docs": [],
+            "5:ai": []
+        }
+    },
+
+    "sway/window": {
+        "max-length": 60,
+        "tooltip": false
+    },
+
+    // --- Center modules ---
+
+    "clock": {
+        "format": "{:%H:%M  %Y-%m-%d}",
+        "format-alt": "{:%A, %B %d, %Y  %H:%M:%S}",
+        "tooltip-format": "<tt><small>{calendar}</small></tt>",
+        "interval": 1
+    },
+
+    // --- Right modules ---
+
+    "custom/tenant-count": {
+        "format": "tenants:{}",
+        "exec": "sparrow-tenant list 2>/dev/null | grep -c active || echo 0",
+        "interval": 10,
+        "tooltip": true,
+        "tooltip-format": "Active SparrowOS tenants"
+    },
+
+    "custom/ai-status": {
+        "format": "ai:{}",
+        "exec": "pgrep -c -f 'sparrow-ai|claude|codex|gemini' 2>/dev/null || echo 0",
+        "interval": 5,
+        "tooltip": true,
+        "tooltip-format": "Running AI tool processes"
+    },
+
+    "pulseaudio": {
+        "format": "vol:{volume}%",
+        "format-muted": "vol:mute",
+        "format-icons": {
+            "default": ["vol"]
+        },
+        "on-click": "pavucontrol",
+        "tooltip": true
+    },
+
+    "network": {
+        "format-wifi": "net:{signalStrength}%",
+        "format-ethernet": "net:eth",
+        "format-disconnected": "net:off",
+        "tooltip-format": "{ifname}: {ipaddr}/{cidr}",
+        "interval": 5
+    },
+
+    "cpu": {
+        "format": "cpu:{usage}%",
+        "interval": 5,
+        "tooltip": true
+    },
+
+    "memory": {
+        "format": "mem:{percentage}%",
+        "interval": 10,
+        "tooltip-format": "{used:0.1f}G / {total:0.1f}G"
+    },
+
+    "battery": {
+        "states": {
+            "warning": 30,
+            "critical": 15
+        },
+        "format": "bat:{capacity}%",
+        "format-charging": "bat:{capacity}%+",
+        "format-plugged": "bat:{capacity}%=",
+        "format-full": "bat:full",
+        "interval": 30,
+        "tooltip-format": "{timeTo}"
+    },
+
+    "tray": {
+        "icon-size": 16,
+        "spacing": 8
+    }
+}

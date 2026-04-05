@@ -1,0 +1,33 @@
+# Build artifacts
+/usr/obj/
+*.iso
+*.img
+*.txz
+
+# Poudriere
+/build/poudriere/data/
+/build/poudriere/jails/
+
+# Secrets (NEVER commit)
+security/secureboot/keys/
+*.key
+*.pem
+ai-keys/
+.env
+.env.*
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# FreeBSD
+*.core
+*.o
+*.ko

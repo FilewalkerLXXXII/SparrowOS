@@ -1,0 +1,20 @@
+# SparrowOS — WireGuard tenant peer configuration template
+#
+# Placeholders are substituted by sparrow-tenant or wg-keygen.sh:
+#   {{TENANT_NAME}}        — tenant identifier
+#   {{TENANT_IP}}          — assigned WireGuard tunnel IP for this tenant
+#   {{TENANT_PRIVATE_KEY}} — tenant's WireGuard private key
+#   {{SERVER_PUBLIC_KEY}}  — SparrowOS server's WireGuard public key
+#   {{SERVER_ENDPOINT}}    — server address:port (e.g. vpn.sparrow.local:51820)
+
+[Interface]
+# Tenant: {{TENANT_NAME}}
+PrivateKey = {{TENANT_PRIVATE_KEY}}
+Address = {{TENANT_IP}}/32
+DNS = 10.99.0.1
+
+[Peer]
+PublicKey = {{SERVER_PUBLIC_KEY}}
+Endpoint = {{SERVER_ENDPOINT}}
+AllowedIPs = 0.0.0.0/0
+PersistentKeepalive = 25

@@ -1,0 +1,50 @@
+#
+# SparrowOS Installer Configuration
+#
+# Used by bsdinstall for automated/semi-automated installation.
+# The installer partitions, encrypts, and installs the base system,
+# then sparrow-setup runs on first boot for user configuration.
+#
+
+DISTRIBUTIONS="base.txz kernel.txz"
+
+# Partitioning (ZFS on GELI)
+# The actual partition layout is handled by encryption.sh and layout.sh
+# during the post-install phase.
+PARTITIONS="ada0 { 512K freebsd-boot, 1G efi fat32, 4G freebsd-swap, auto freebsd-zfs }"
+
+#!/bin/sh
+#
+# Post-install script — runs after base system is extracted
+#
+
+set -eu
+
+# Enable SparrowOS services
+sysrc -f /etc/rc.conf hostname="sparrow"
+sysrc -f /etc/rc.conf zfs_enable="YES"
+sysrc -f /etc/rc.conf pf_enable="YES"
+sysrc -f /etc/rc.conf pflog_enable="YES"
+sysrc -f /etc/rc.conf auditd_enable="YES"
+sysrc -f /etc/rc.conf sshd_enable="YES"
+sysrc -f /etc/rc.conf seatd_enable="YES"
+sysrc -f /etc/rc.conf dbus_enable="YES"
+sysrc -f /etc/rc.conf greetd_enable="YES"
+sysrc -f /etc/rc.conf local_unbound_enable="YES"
+
+# Set timezone (UTC default, user can change in sparrow-setup)
+ln -sf /usr/share/zoneinfo/UTC /etc/localtime
+
+# Enable sparrow-setup on first login
+cat >> /root/.profile <<'PROFILE'
+if [ ! -f /usr/local/etc/sparrow/.setup-complete ]; then
+    /usr/local/bin/sparrow-setup
+fi
+PROFILE
+
+# Set MOTD
+cat > /etc/motd.template <<'MOTD'
+MOTD
+echo '/usr/local/bin/sparrow-motd' >> /etc/profile
+
+echo "SparrowOS post-install complete. Reboot to start setup wizard."

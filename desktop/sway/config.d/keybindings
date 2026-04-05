@@ -1,0 +1,153 @@
+#
+# SparrowOS Sway Keybindings
+#
+# Mod key: Super (Mod4)
+# Navigation: Vim-style (h/j/k/l)
+#
+
+# ============================================================================
+# CORE
+# ============================================================================
+
+# Terminal
+bindsym $mod+Return exec $term
+
+# Application launcher
+bindsym $mod+d exec $launcher
+
+# AI tool launcher (sparrow-ai interactive menu)
+bindsym $mod+space exec $term --title "sparrow-ai" $ai
+
+# Kill focused window
+bindsym $mod+Shift+q kill
+
+# Reload Sway config
+bindsym $mod+Shift+c reload
+
+# Exit Sway (with confirmation)
+bindsym $mod+Shift+e exec swaynag -t warning \
+    -m 'Exit SparrowOS desktop?' \
+    -B 'Yes, exit' 'swaymsg exit'
+
+# Lock screen
+bindsym $mod+Shift+l exec swaylock -f
+
+# ============================================================================
+# NAVIGATION
+# ============================================================================
+
+# Focus
+bindsym $mod+$left focus left
+bindsym $mod+$down focus down
+bindsym $mod+$up focus up
+bindsym $mod+$right focus right
+
+# Arrow keys also work
+bindsym $mod+Left focus left
+bindsym $mod+Down focus down
+bindsym $mod+Up focus up
+bindsym $mod+Right focus right
+
+# Move focused window
+bindsym $mod+Shift+$left move left
+bindsym $mod+Shift+$down move down
+bindsym $mod+Shift+$up move up
+bindsym $mod+Shift+$right move right
+
+# ============================================================================
+# WORKSPACES
+# ============================================================================
+
+# Switch workspace
+bindsym $mod+1 workspace number 1
+bindsym $mod+2 workspace number 2
+bindsym $mod+3 workspace number 3
+bindsym $mod+4 workspace number 4
+bindsym $mod+5 workspace number 5
+bindsym $mod+6 workspace number 6
+bindsym $mod+7 workspace number 7
+bindsym $mod+8 workspace number 8
+bindsym $mod+9 workspace number 9
+
+# Move container to workspace
+bindsym $mod+Shift+1 move container to workspace number 1
+bindsym $mod+Shift+2 move container to workspace number 2
+bindsym $mod+Shift+3 move container to workspace number 3
+bindsym $mod+Shift+4 move container to workspace number 4
+bindsym $mod+Shift+5 move container to workspace number 5
+bindsym $mod+Shift+6 move container to workspace number 6
+bindsym $mod+Shift+7 move container to workspace number 7
+bindsym $mod+Shift+8 move container to workspace number 8
+bindsym $mod+Shift+9 move container to workspace number 9
+
+# ============================================================================
+# LAYOUT
+# ============================================================================
+
+# Split direction
+bindsym $mod+b splith
+bindsym $mod+v splitv
+
+# Layout modes
+bindsym $mod+s layout stacking
+bindsym $mod+w layout tabbed
+bindsym $mod+e layout toggle split
+
+# Fullscreen
+bindsym $mod+f fullscreen toggle
+
+# Toggle floating
+bindsym $mod+Shift+space floating toggle
+
+# Focus floating/tiling
+bindsym $mod+Tab focus mode_toggle
+
+# Focus parent/child
+bindsym $mod+a focus parent
+
+# ============================================================================
+# RESIZE MODE
+# ============================================================================
+
+mode "resize" {
+    bindsym $left resize shrink width 40px
+    bindsym $down resize grow height 40px
+    bindsym $up resize shrink height 40px
+    bindsym $right resize grow width 40px
+
+    bindsym Return mode "default"
+    bindsym Escape mode "default"
+}
+bindsym $mod+r mode "resize"
+
+# ============================================================================
+# SPARROWOS CUSTOM
+# ============================================================================
+
+# Screenshot (full screen)
+bindsym Print exec grim ~/Pictures/screenshot-$(date +%Y%m%d-%H%M%S).png
+
+# Screenshot (selection)
+bindsym $mod+Shift+s exec grim -g "$(slurp)" ~/Pictures/screenshot-$(date +%Y%m%d-%H%M%S).png
+
+# Clipboard screenshot
+bindsym $mod+Print exec grim - | wl-copy
+
+# Tenant dashboard
+bindsym $mod+Shift+t exec $term --title "tenant-dashboard" $tenant list
+
+# New terminal in project context
+bindsym $mod+t exec $term
+
+# Notification center toggle
+bindsym $mod+n exec swaync-client -t -sw
+
+# ============================================================================
+# MEDIA KEYS
+# ============================================================================
+
+bindsym XF86AudioRaiseVolume exec pactl set-sink-volume @DEFAULT_SINK@ +5%
+bindsym XF86AudioLowerVolume exec pactl set-sink-volume @DEFAULT_SINK@ -5%
+bindsym XF86AudioMute exec pactl set-sink-mute @DEFAULT_SINK@ toggle
+bindsym XF86MonBrightnessUp exec brightnessctl set +5%
+bindsym XF86MonBrightnessDown exec brightnessctl set 5%-

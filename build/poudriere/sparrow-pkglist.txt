@@ -1,0 +1,82 @@
+# SparrowOS Package List
+# Built via Poudriere for inclusion in the ISO
+
+# ---- Desktop Environment (Wayland) ----
+x11-wm/sway
+x11/foot
+x11/fuzzel
+x11/waybar
+x11/swaynotificationcenter
+x11/swaylock-effects
+x11/swaybg
+x11/swayidle
+x11/greetd
+x11/tuigreet
+x11/grim
+x11/slurp
+x11/wl-clipboard
+x11/seatd
+devel/dbus
+x11/xdg-utils
+
+# ---- Terminal & Shell ----
+shells/zsh
+misc/starship
+textproc/fzf
+sysutils/tmux
+shells/zsh-autosuggestions
+shells/zsh-syntax-highlighting
+
+# ---- Editors ----
+editors/helix
+www/code-server
+
+# ---- Fonts ----
+x11-fonts/ibm-plex
+x11-fonts/firacode
+x11-fonts/nerd-fonts
+
+# ---- Development Tools ----
+devel/git
+lang/rust
+devel/cargo-edit
+lang/node20
+lang/npm
+lang/python311
+devel/py-pip
+lang/go
+
+# ---- Language Servers (for Helix) ----
+devel/rust-analyzer
+devel/gopls
+
+# ---- Security & System ----
+sysutils/bastille
+net/wireguard-tools
+dns/unbound
+security/openssh-portable
+devel/ccache
+sysutils/seatd
+
+# ---- Web Server (for code-server reverse proxy) ----
+www/nginx
+
+# ---- CLI Utilities ----
+sysutils/htop
+sysutils/tree
+textproc/jq
+net/curl
+net/wget
+textproc/ripgrep
+sysutils/fd-find
+textproc/bat
+sysutils/exa
+sysutils/zoxide
+
+# ---- System Utilities ----
+sysutils/smartmontools
+sysutils/lsblk
+misc/dialog
+
+# ---- GTK Theme Support ----
+x11-themes/papirus-icon-theme

@@ -1,0 +1,37 @@
+#
+# SparrowOS Sway Appearance — Cyberpunk Neon Theme
+#
+# Color Palette:
+#   Background:  #0a0a0a (near-black)
+#   Primary:     #00ff00 (neon green)
+#   Accent:      #00ffff (cyan)
+#   Highlight:   #ff00ff (magenta)
+#   Warning:     #ff6600 (orange)
+#   Text:        #e0e0e0 (light gray)
+#   Dim:         #333333 (dark gray)
+#
+
+# Font
+font pango:IBM Plex Mono 10
+
+# Window borders
+default_border pixel 2
+default_floating_border pixel 2
+hide_edge_borders smart
+
+# Gaps
+gaps inner 4
+gaps outer 0
+smart_gaps on
+
+# Colors
+#                       border  backgr  text    indicator child_border
+client.focused          #00ffff #0a0a0a #e0e0e0 #ff00ff   #00ffff
+client.focused_inactive #333333 #0a0a0a #888888 #333333   #333333
+client.unfocused        #333333 #0a0a0a #888888 #333333   #1a1a1a
+client.urgent           #ff6600 #0a0a0a #e0e0e0 #ff6600   #ff6600
+client.placeholder      #000000 #0a0a0a #e0e0e0 #000000   #0a0a0a
+
+# Titlebar (hidden with pixel borders, but set for tabbed/stacked layouts)
+titlebar_border_thickness 1
+titlebar_padding 4 2

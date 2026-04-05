@@ -1,0 +1,224 @@
+#!/bin/sh
+# SparrowOS — Unified AI CLI wrapper
+#
+# Provides a single entry point for all supported AI coding assistants.
+# Before launching any tool, a ZFS snapshot is taken so changes can be
+# reviewed via `sparrow-ai diff`.  All invocations are logged to syslog.
+#
+# Usage:
+#   sparrow-ai claude [args...]   — run Claude Code
+#   sparrow-ai codex  [args...]   — run Codex CLI
+#   sparrow-ai gemini [args...]   — run Gemini CLI
+#   sparrow-ai status             — show running AI tool processes
+#   sparrow-ai log                — show recent AI activity from syslog
+#   sparrow-ai diff               — show ZFS diff since last AI snapshot
+#
+# API keys are loaded from ~/.config/sparrow/ai-keys/<tool>.env
+
+set -eu
+
+AI_KEYS_DIR="${HOME}/.config/sparrow/ai-keys"
+SNAPSHOT_PREFIX="sparrow-ai"
+LOG_TAG="sparrow-ai"
+ZFS_DATASET="${SPARROW_AI_DATASET:-zroot/sparrow/tenants/$(whoami)}"
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+log_msg() {
+    logger -t "$LOG_TAG" "$*"
+}
+
+die() {
+    printf '[sparrow-ai] ERROR: %s\n' "$*" >&2
+    exit 1
+}
+
+usage() {
+    cat <<EOF
+Usage: sparrow-ai <command> [args...]
+
+Commands:
+  claude [args]   Run Claude Code
+  codex  [args]   Run Codex CLI
+  gemini [args]   Run Gemini CLI
+  status          Show running AI tool processes
+  log             Show recent AI activity
+  diff            Show ZFS diff since last AI snapshot
+
+EOF
+    exit 1
+}
+
+# ---------------------------------------------------------------------------
+# API key injection
+# ---------------------------------------------------------------------------
+
+load_api_key() {
+    tool="$1"
+    keyfile="${AI_KEYS_DIR}/${tool}.env"
+
+    if [ ! -f "$keyfile" ]; then
+        printf '[sparrow-ai] WARNING: No API key file at %s\n' "$keyfile" >&2
+        return 0
+    fi
+
+    # Source the key file (expected to export ENV vars)
+    # shellcheck disable=SC1090
+    . "$keyfile"
+    log_msg "Loaded API keys from $keyfile"
+}
+
+# ---------------------------------------------------------------------------
+# ZFS snapshot management
+# ---------------------------------------------------------------------------
+
+take_snapshot() {
+    label="$1"
+    snap_name="${ZFS_DATASET}@${SNAPSHOT_PREFIX}-${label}-$(date +%Y%m%d-%H%M%S)"
+
+    if zfs list -H -o name "$ZFS_DATASET" >/dev/null 2>&1; then
+        zfs snapshot "$snap_name" 2>/dev/null || {
+            printf '[sparrow-ai] WARNING: Could not create ZFS snapshot.\n' >&2
+            return 0
+        }
+        echo "$snap_name"
+        log_msg "Snapshot created: $snap_name"
+    else
+        printf '[sparrow-ai] WARNING: ZFS dataset %s not found — skipping snapshot.\n' "$ZFS_DATASET" >&2
+    fi
+}
+
+get_latest_snapshot() {
+    zfs list -H -t snapshot -o name -s creation "$ZFS_DATASET" 2>/dev/null \
+        | grep "${SNAPSHOT_PREFIX}" \
+        | tail -1
+}
+
+# ---------------------------------------------------------------------------
+# Tool runners
+# ---------------------------------------------------------------------------
+
+run_tool() {
+    tool="$1"
+    shift
+
+    case "$tool" in
+        claude) cmd="claude" ;;
+        codex)  cmd="codex" ;;
+        gemini) cmd="gemini" ;;
+        *)      die "Unknown tool: $tool" ;;
+    esac
+
+    # Verify tool is installed
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+        die "'$cmd' is not installed. Run: sparrow-ai-provision $tool"
+    fi
+
+    # Load API key
+    load_api_key "$tool"
+
+    # Pre-run: snapshot and log
+    log_msg "Starting $tool in $(pwd)"
+    snap_before=$(take_snapshot "before-${tool}")
+
+    # Run the tool
+    exit_code=0
+    "$cmd" "$@" || exit_code=$?
+
+    # Post-run: log completion
+    log_msg "Completed $tool (exit=$exit_code) in $(pwd)"
+
+    # Show ZFS diff if snapshot was taken
+    if [ -n "${snap_before:-}" ]; then
+        printf '\n[sparrow-ai] Changes since snapshot:\n'
+        zfs diff "$snap_before" 2>/dev/null || printf '  (no diff available)\n'
+        take_snapshot "after-${tool}" >/dev/null 2>&1 || true
+    fi
+
+    return "$exit_code"
+}
+
+# ---------------------------------------------------------------------------
+# Subcommands
+# ---------------------------------------------------------------------------
+
+cmd_status() {
+    printf '[sparrow-ai] Running AI tool processes:\n\n'
+
+    found=0
+    for tool in claude codex gemini; do
+        pids=$(pgrep -x "$tool" 2>/dev/null || true)
+        if [ -n "$pids" ]; then
+            found=1
+            for pid in $pids; do
+                printf '  %-10s PID %-8s %s\n' "$tool" "$pid" \
+                    "$(ps -o args= -p "$pid" 2>/dev/null || echo '(unknown)')"
+            done
+        fi
+    done
+
+    if [ "$found" -eq 0 ]; then
+        printf '  No AI tools currently running.\n'
+    fi
+}
+
+cmd_log() {
+    printf '[sparrow-ai] Recent activity:\n\n'
+    # Search syslog for our log tag (works on FreeBSD and Linux)
+    if [ -f /var/log/messages ]; then
+        grep "$LOG_TAG" /var/log/messages | tail -30
+    elif command -v journalctl >/dev/null 2>&1; then
+        journalctl -t "$LOG_TAG" --no-pager -n 30
+    else
+        printf '  No log source available.\n'
+    fi
+}
+
+cmd_diff() {
+    snap=$(get_latest_snapshot)
+    if [ -z "$snap" ]; then
+        printf '[sparrow-ai] No AI snapshots found for %s.\n' "$ZFS_DATASET"
+        return 1
+    fi
+
+    printf '[sparrow-ai] Diff since: %s\n\n' "$snap"
+    zfs diff "$snap" 2>/dev/null || printf '  (diff not available)\n'
+}
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+main() {
+    if [ $# -lt 1 ]; then
+        usage
+    fi
+
+    subcmd="$1"
+    shift
+
+    case "$subcmd" in
+        claude|codex|gemini)
+            run_tool "$subcmd" "$@"
+            ;;
+        status)
+            cmd_status
+            ;;
+        log)
+            cmd_log
+            ;;
+        diff)
+            cmd_diff
+            ;;
+        -h|--help|help)
+            usage
+            ;;
+        *)
+            die "Unknown command: $subcmd (try: sparrow-ai --help)"
+            ;;
+    esac
+}
+
+main "$@"

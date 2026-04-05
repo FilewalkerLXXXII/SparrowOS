@@ -1,0 +1,45 @@
+# ===========================================================================
+# SparrowOS -- OpenBSM Audit Configuration (/etc/security/audit_control)
+# ===========================================================================
+# This file controls the FreeBSD audit subsystem (auditd).  It specifies
+# which event classes to record, where to store trail files, and
+# housekeeping limits.
+#
+# Event class flags used:
+#   lo  -- login/logout
+#   aa  -- authentication and authorization
+#   ad  -- administrative actions (user/group changes, system config)
+#   fw  -- file-attribute write (permission, ownership changes)
+#   fc  -- file create
+#   fd  -- file delete
+#   fm  -- file-attribute modify
+#   ex  -- exec (program execution)
+#
+# See audit_class(5) and audit_control(5) for the full reference.
+# ===========================================================================
+
+# Directory where audit trail files are stored.
+dir:/var/audit
+
+# Global event flags -- applied to all users unless overridden in
+# audit_user(5).
+flags:lo,aa,ad,fw,fc,fd,fm,ex
+
+# Minimum free space (percent) on the audit filesystem before a warning
+# is triggered.  If free space drops below this, auditd will issue an
+# alert and (depending on policy) may halt the system.
+minfree:5
+
+# Maximum size per audit trail file before rotation.  Keeping files
+# small makes review and archival easier.
+filesz:2M
+
+# Automatically expire (delete) trail files older than 30 days.
+expire-after:30d
+
+# Audit policy flags:
+#   cnt   -- continue operating even if an audit record cannot be written
+#            (do not panic the system on audit failure).
+#   argv  -- include full argv in exec records (useful for forensics).
+#   arge  -- include full environment in exec records.
+policy:cnt,argv,arge
