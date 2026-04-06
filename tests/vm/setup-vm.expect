@@ -1,0 +1,131 @@
+#!/usr/bin/expect -f
+#
+# Boot FreeBSD 15.0 VM in single-user mode, set root password,
+# enable sshd, then reboot into multi-user with SSH available.
+#
+
+set timeout 180
+log_file -noappend /tmp/sparrow-vm-expect.log
+
+spawn qemu-system-aarch64 \
+    -machine virt,accel=hvf,highmem=on \
+    -cpu host \
+    -m 8G \
+    -smp 4 \
+    -bios /opt/homebrew/share/qemu/edk2-aarch64-code.fd \
+    -drive if=virtio,file=sparrow-test.qcow2,format=qcow2 \
+    -device virtio-net-pci,netdev=net0 \
+    -netdev user,id=net0,hostfwd=tcp::2222-:22 \
+    -device virtio-rng-pci \
+    -nographic
+
+# Wait for boot menu, then select single-user mode
+expect {
+    "Autoboot in" {
+        send "2"
+        sleep 1
+    }
+    timeout { puts "TIMEOUT waiting for boot menu"; exit 1 }
+}
+
+# Wait for single-user shell
+expect {
+    "Enter full pathname of shell" {
+        send "\r"
+        sleep 2
+    }
+    "# " { }
+    "#" { }
+    timeout { puts "TIMEOUT waiting for single-user shell"; exit 1 }
+}
+
+# Wait for actual shell prompt
+expect {
+    "# " { }
+    "#" { }
+}
+
+# Mount filesystems read-write
+send "mount -u /\r"
+expect "#"
+sleep 1
+
+send "mount -a -t ufs\r"
+expect "#"
+sleep 1
+
+send "zfs mount -a\r"
+expect "#"
+sleep 1
+
+# Set root password to 'sparrow'
+send "echo 'sparrow' | pw usermod root -h 0\r"
+expect "#"
+sleep 1
+
+# Enable sshd
+send "sysrc sshd_enable=YES\r"
+expect "#"
+sleep 1
+
+# Enable root SSH login
+send "sed -i '' 's/^#PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config\r"
+expect "#"
+sleep 1
+
+send "grep -q '^PermitRootLogin yes' /etc/ssh/sshd_config || echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config\r"
+expect "#"
+sleep 1
+
+# Also allow password authentication
+send "sed -i '' 's/^#PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config\r"
+expect "#"
+sleep 1
+
+# Print confirmation
+send "echo SINGLE_USER_SETUP_DONE\r"
+expect "SINGLE_USER_SETUP_DONE"
+
+puts "\n\n=== Single-user setup complete. Rebooting into multi-user... ==="
+
+# Reboot into multi-user
+send "reboot\r"
+
+# Wait for the system to come back up
+expect {
+    "login:" { }
+    timeout { puts "TIMEOUT waiting for reboot"; exit 1 }
+}
+
+# Login with new password
+send "root\r"
+expect "Password:"
+send "sparrow\r"
+sleep 3
+
+expect {
+    "#" { }
+    "$ " { }
+    timeout { puts "TIMEOUT after login"; exit 1 }
+}
+
+# Verify SSH is running
+send "service sshd status\r"
+expect "#"
+sleep 1
+
+send "sockstat -4l | grep ':22'\r"
+expect "#"
+sleep 1
+
+send "echo SPARROW_VM_READY\r"
+expect "SPARROW_VM_READY"
+
+puts "\n\n=== FreeBSD 15.0 VM READY ==="
+puts "SSH: ssh -p 2222 root@localhost (password: sparrow)"
+puts "To quit QEMU: Ctrl+A then X"
+puts "===\n"
+
+# Keep running
+set timeout -1
+expect eof

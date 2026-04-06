@@ -33,8 +33,8 @@ include ~/.config/sway/config.d/autostart
 # ============================================================================
 
 # Default wallpaper (cyberpunk dark)
-output * bg /usr/local/share/sparrow/wallpaper/sparrow-default.png fill
-# Fallback: solid near-black
+# output * bg /usr/local/share/sparrow/wallpaper/sparrow-default.png fill
+# Fallback: solid near-black (used until wallpaper is created)
 output * bg #0a0a0a solid_color
 
 # ============================================================================
@@ -61,11 +61,7 @@ input type:pointer {
 # IDLE / LOCK
 # ============================================================================
 
-exec swayidle -w \
-    timeout 300 'swaylock -f' \
-    timeout 600 'swaymsg "output * power off"' \
-    resume 'swaymsg "output * power on"' \
-    before-sleep 'swaylock -f'
+# Idle management is handled in config.d/autostart
 
 # ============================================================================
 # WINDOW RULES
