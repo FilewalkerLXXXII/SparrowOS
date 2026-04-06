@@ -20,8 +20,9 @@ exec_always sh -c 'pkill waybar; waybar &'
 # ---------------------------------------------------------------------------
 # Autostart applications
 # ---------------------------------------------------------------------------
-# Terminal on workspace 1
-exec swaymsg "workspace 1:term; exec foot"
+# Agentic Development Layout on workspace 1
+# Launches foot with sparrow-workspace (tmux with editor + terminal + AI agent)
+exec swaymsg "workspace 1:term; exec foot sparrow-workspace"
 
 # ---------------------------------------------------------------------------
 # Idle / lock management

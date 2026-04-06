@@ -1,0 +1,198 @@
+#!/bin/sh
+#
+# sparrow-workspace — Launch the SparrowOS Agentic Development Layout
+#
+# Creates a tmux session with a pre-configured tiling layout:
+#
+#   ┌─────────────────────────────────┬──────────────────┐
+#   │                                 │                  │
+#   │          EDITOR (helix)         │   AI AGENT       │
+#   │                                 │   (claude/codex/ │
+#   │          Main coding area       │    gemini)       │
+#   │                                 │                  │
+#   ├─────────────────────────────────┤                  │
+#   │          TERMINAL               │                  │
+#   │   build/test/git commands       │                  │
+#   └─────────────────────────────────┴──────────────────┘
+#
+#   Window 2: [MONITOR] — htop / sparrow-tenant status / logs
+#   Window 3: [GIT]     — git log / diff / status
+#
+# Usage:
+#   sparrow-workspace                    # Default: claude as AI agent
+#   sparrow-workspace --ai codex         # Use Codex instead
+#   sparrow-workspace --ai gemini        # Use Gemini instead
+#   sparrow-workspace --project /path    # Open specific project
+#   sparrow-workspace --no-ai            # No AI agent pane
+#   sparrow-workspace --attach           # Attach to existing session
+#
+
+set -eu
+
+# ============================================================================
+# CONFIGURATION
+# ============================================================================
+
+SESSION_NAME="sparrow"
+AI_TOOL="claude"
+PROJECT_DIR=""
+NO_AI=0
+ATTACH_ONLY=0
+EDITOR="${EDITOR:-hx}"
+
+# Colors for status messages
+C_GREEN="\033[38;2;0;255;0m"
+C_CYAN="\033[38;2;0;255;255m"
+C_RESET="\033[0m"
+
+# ============================================================================
+# ARGUMENT PARSING
+# ============================================================================
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --ai)
+            shift
+            AI_TOOL="$1"
+            ;;
+        --project)
+            shift
+            PROJECT_DIR="$1"
+            ;;
+        --no-ai)
+            NO_AI=1
+            ;;
+        --attach)
+            ATTACH_ONLY=1
+            ;;
+        --session)
+            shift
+            SESSION_NAME="$1"
+            ;;
+        --help|-h)
+            sed -n '3,28p' "$0" | sed 's/^# \?//'
+            exit 0
+            ;;
+        *)
+            # Treat as project directory
+            PROJECT_DIR="$1"
+            ;;
+    esac
+    shift
+done
+
+# Resolve project directory
+if [ -n "$PROJECT_DIR" ]; then
+    cd "$PROJECT_DIR" || { echo "Cannot access $PROJECT_DIR"; exit 1; }
+fi
+PROJECT_DIR="$(pwd)"
+PROJECT_NAME="$(basename "$PROJECT_DIR")"
+
+# ============================================================================
+# ATTACH TO EXISTING SESSION
+# ============================================================================
+
+if [ "$ATTACH_ONLY" -eq 1 ] || tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
+    if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
+        exec tmux attach-session -t "$SESSION_NAME"
+    else
+        echo "No existing session '$SESSION_NAME' found. Creating new one."
+    fi
+fi
+
+# ============================================================================
+# AI TOOL COMMAND
+# ============================================================================
+
+ai_cmd() {
+    case "$AI_TOOL" in
+        claude)
+            if command -v sparrow-ai >/dev/null 2>&1; then
+                echo "sparrow-ai claude"
+            elif command -v claude >/dev/null 2>&1; then
+                echo "claude"
+            else
+                echo "echo 'Claude Code not installed. Run: npm install -g @anthropic-ai/claude-code'; sh"
+            fi
+            ;;
+        codex)
+            if command -v sparrow-ai >/dev/null 2>&1; then
+                echo "sparrow-ai codex"
+            elif command -v codex >/dev/null 2>&1; then
+                echo "codex"
+            else
+                echo "echo 'Codex CLI not installed. Run: npm install -g @openai/codex'; sh"
+            fi
+            ;;
+        gemini)
+            if command -v sparrow-ai >/dev/null 2>&1; then
+                echo "sparrow-ai gemini"
+            elif command -v gemini >/dev/null 2>&1; then
+                echo "gemini"
+            else
+                echo "echo 'Gemini CLI not installed. Run: npm install -g @google/gemini-cli'; sh"
+            fi
+            ;;
+        *)
+            echo "echo 'Unknown AI tool: $AI_TOOL'; sh"
+            ;;
+    esac
+}
+
+# ============================================================================
+# CREATE THE LAYOUT
+# ============================================================================
+
+printf "${C_GREEN}SparrowOS${C_RESET} ${C_CYAN}Agentic Development Layout${C_RESET}\n"
+printf "Project: ${C_GREEN}%s${C_RESET}\n" "$PROJECT_DIR"
+[ "$NO_AI" -eq 0 ] && printf "AI Agent: ${C_CYAN}%s${C_RESET}\n" "$AI_TOOL"
+echo ""
+
+# ---- Window 1: DEV (Editor + Terminal + AI Agent) ----
+
+tmux new-session -d -s "$SESSION_NAME" -n "DEV" -c "$PROJECT_DIR"
+
+# Main pane starts as editor
+tmux send-keys -t "$SESSION_NAME:DEV" "clear && echo '  Loading editor...' && sleep 1 && $EDITOR ." Enter
+
+# Split bottom: terminal (30% height)
+tmux split-window -t "$SESSION_NAME:DEV" -v -p 30 -c "$PROJECT_DIR"
+tmux send-keys -t "$SESSION_NAME:DEV.1" "clear && echo '  ── Terminal ── Build, test, git commands'" Enter
+
+if [ "$NO_AI" -eq 0 ]; then
+    # Split right: AI agent (35% width of the full window)
+    tmux split-window -t "$SESSION_NAME:DEV.0" -h -p 35 -c "$PROJECT_DIR"
+    AI_CMD="$(ai_cmd)"
+    tmux send-keys -t "$SESSION_NAME:DEV.1" "clear && echo '  ── AI Agent: $AI_TOOL ──' && echo '  Starting...' && $AI_CMD" Enter
+fi
+
+# Focus the editor pane
+tmux select-pane -t "$SESSION_NAME:DEV.0"
+
+# ---- Window 2: MONITOR ----
+
+tmux new-window -t "$SESSION_NAME" -n "MONITOR" -c "$PROJECT_DIR"
+tmux send-keys -t "$SESSION_NAME:MONITOR" "htop 2>/dev/null || top" Enter
+
+# Split for tenant/system status
+tmux split-window -t "$SESSION_NAME:MONITOR" -v -p 40 -c "$PROJECT_DIR"
+tmux send-keys -t "$SESSION_NAME:MONITOR.1" "watch -n5 'sparrow-tenant list 2>/dev/null; echo ---; sparrow-ai status 2>/dev/null' 2>/dev/null || echo 'Monitoring ready'" Enter
+
+# ---- Window 3: GIT ----
+
+tmux new-window -t "$SESSION_NAME" -n "GIT" -c "$PROJECT_DIR"
+tmux send-keys -t "$SESSION_NAME:GIT" "git log --oneline --graph --decorate -20 2>/dev/null || echo 'Not a git repository'" Enter
+
+# Split for git status
+tmux split-window -t "$SESSION_NAME:GIT" -v -p 50 -c "$PROJECT_DIR"
+tmux send-keys -t "$SESSION_NAME:GIT.1" "git status 2>/dev/null || echo 'Not a git repository'" Enter
+
+# ---- Select DEV window and attach ----
+
+tmux select-window -t "$SESSION_NAME:DEV"
+
+printf "${C_GREEN}Workspace ready.${C_RESET} Attaching to tmux session '${SESSION_NAME}'...\n"
+printf "Keybindings: ${C_CYAN}Ctrl+a${C_RESET} is the prefix. ${C_CYAN}Ctrl+a w${C_RESET} to switch windows.\n"
+echo ""
+
+exec tmux attach-session -t "$SESSION_NAME"
